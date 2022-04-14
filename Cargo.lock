@@ -591,6 +591,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "minter_imago"
+version = "0.10.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.1",
+ "cw-utils 0.13.1",
+ "cw2 0.13.1",
+ "cw721",
+ "cw721-base",
+ "schemars",
+ "serde",
+ "sg-multi-test",
+ "sg-std 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sg721",
+ "thiserror",
+ "url",
+ "whitelist",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
