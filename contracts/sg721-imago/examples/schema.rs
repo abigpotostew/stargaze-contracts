@@ -8,7 +8,7 @@ use cw721::{
     AllNftInfoResponse, ApprovalResponse, ApprovalsResponse, ContractInfoResponse, NftInfoResponse,
     NumTokensResponse, OperatorsResponse, OwnerOfResponse, TokensResponse,
 };
-use sg721::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use sg721_imago::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

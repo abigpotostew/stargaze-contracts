@@ -1,6 +1,6 @@
 [package]
 name = "minter_imago"
-version = "0.10.0"
+version = "0.0.1"
 authors = ["Stew <>"]
 edition = "2018"
 
@@ -47,7 +47,9 @@ cw2 = "0.13.1"
 cw-utils = "0.13.1"
 schemars = "0.8"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-sg721 = { path = "../sg721", features = ["library"] }
+#sg721 = { path = "../sg721", features = ["library"] }
+sg721_imago = { path = "../sg721-imago", features = ["library"] }
+minter = { path = "../minter", features = ["library"] }
 thiserror = { version = "1.0" }
 url = "2.2.0"
 sg-std = "0.10.0"

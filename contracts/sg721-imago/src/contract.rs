@@ -17,14 +17,14 @@ use crate::msg::{
 use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:sg-721";
+const CONTRACT_NAME: &str = "crates.io:sg-721-imago";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const MAX_DESCRIPTION_LENGTH: u32 = 512;
 
 type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
-pub type Sg721Contract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
+pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -42,12 +42,12 @@ pub fn instantiate(
         name: msg.name,
         symbol: msg.symbol,
     };
-    Sg721Contract::default()
+    Sg721ImagoContract::default()
         .contract_info
         .save(deps.storage, &info)?;
 
     let minter = deps.api.addr_validate(&msg.minter)?;
-    Sg721Contract::default()
+    Sg721ImagoContract::default()
         .minter
         .save(deps.storage, &minter)?;
 
@@ -58,9 +58,13 @@ pub fn instantiate(
 
     let image = Url::parse(&msg.collection_info.image)?;
 
+
     if let Some(ref external_link) = msg.collection_info.external_link {
         Url::parse(external_link)?;
     }
+
+    Url::parse(&msg.collection_info.code_uri)?;
+    // todo validate it is ipfs
 
     let royalty_info: Option<RoyaltyInfo> = match msg.collection_info.royalty_info {
         Some(royalty_info) => Some(RoyaltyInfo {
@@ -76,6 +80,7 @@ pub fn instantiate(
         creator: msg.collection_info.creator,
         description: msg.collection_info.description,
         image: msg.collection_info.image,
+        code_uri: msg.collection_info.code_uri,
         external_link: msg.collection_info.external_link,
         royalty_info,
     };
@@ -97,14 +102,15 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, BaseError> {
-    Sg721Contract::default().execute(deps, env, info, msg)
+    if msg msg == ExecuteMsg:: { }
+    Sg721ImagoContract::default().execute(deps, env, info, msg)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CollectionInfo {} => to_binary(&query_config(deps)?),
-        _ => Sg721Contract::default().query(deps, env, msg.into()),
+        _ => Sg721ImagoContract::default().query(deps, env, msg.into()),
     }
 }
 
@@ -123,6 +129,7 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
         creator: info.creator,
         description: info.description,
         image: info.image,
+        code_uri: info.code_uri,
         external_link: info.external_link,
         royalty_info: royalty_info_res,
     })
@@ -150,6 +157,7 @@ mod tests {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
@@ -169,6 +177,10 @@ mod tests {
             "https://example.com/external.html",
             value.external_link.unwrap()
         );
+        assert_eq!(
+            "ipfs://abc123",
+            value.code_uri
+        );
         assert_eq!(None, value.royalty_info);
     }
 
@@ -186,6 +198,7 @@ mod tests {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: creator.clone(),

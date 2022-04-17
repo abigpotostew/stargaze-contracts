@@ -8,9 +8,9 @@ pub struct CollectionInfo<T> {
     pub creator: String,
     pub description: String,
     pub image: String,
+    pub code_uri: String,
     pub external_link: Option<String>,
     pub royalty_info: Option<T>,
-    pub code_uri
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -4,8 +4,8 @@ use cosmwasm_std::{Api, Coin};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
-use sg721::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse};
-use sg721::state::CollectionInfo;
+use sg721_imago::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse};
+use sg721_imago::state::CollectionInfo;
 use sg_multi_test::StargazeApp;
 use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
 use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
@@ -52,9 +52,9 @@ pub fn contract_minter() -> Box<dyn Contract<StargazeMsgWrapper>> {
 
 pub fn contract_sg721() -> Box<dyn Contract<StargazeMsgWrapper>> {
     let contract = ContractWrapper::new(
-        sg721::contract::execute,
-        sg721::contract::instantiate,
-        sg721::contract::query,
+        sg721_imago::contract::execute,
+        sg721_imago::contract::instantiate,
+        sg721_imago::contract::query,
     );
     Box::new(contract)
 }
@@ -110,6 +110,7 @@ fn setup_minter_contract(
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: creator.to_string(),
@@ -219,6 +220,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -247,6 +249,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -276,6 +279,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -304,6 +308,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -332,6 +337,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -360,6 +366,7 @@ fn initialization() {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: info.sender.to_string(),
@@ -1238,6 +1245,7 @@ fn test_start_time_before_genesis() {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: creator.to_string(),
@@ -1288,6 +1296,7 @@ fn test_update_start_time() {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
@@ -1346,6 +1355,7 @@ fn test_invalid_start_time() {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
+                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },

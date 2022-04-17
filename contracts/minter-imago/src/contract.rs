@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_utils::{may_pay, parse_reply_instantiate_data};
-use sg721::msg::InstantiateMsg as Sg721InstantiateMsg;
+use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
 use url::Url;
 
 use crate::error::ContractError;
@@ -23,11 +23,17 @@ use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
 };
 
+/**
+Stew todo
+- Inherit or at least import functions and types from sg721 minter
+- Use BeforeMint callback on minter so my logic can be injected
+*/
+
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type SubMsg = cosmwasm_std::SubMsg<StargazeMsgWrapper>;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:sg-minter";
+const CONTRACT_NAME: &str = "crates.io:sg-minter-imago";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
