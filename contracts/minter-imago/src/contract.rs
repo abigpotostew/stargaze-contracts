@@ -139,6 +139,7 @@ pub fn instantiate(
                 name: msg.sg721_instantiate_msg.name,
                 symbol: msg.sg721_instantiate_msg.symbol,
                 minter: env.contract.address.to_string(),
+                finalizer: msg.sg721_instantiate_msg.finalizer,
                 collection_info: msg.sg721_instantiate_msg.collection_info,
             })?,
             funds: info.funds,

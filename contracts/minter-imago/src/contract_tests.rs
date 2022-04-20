@@ -92,6 +92,7 @@ fn setup_minter_contract(
     let sg721_code_id = router.store_code(contract_sg721());
     let minter_code_id = router.store_code(contract_minter());
     let creation_fee = coins(CREATION_FEE, NATIVE_DENOM);
+    let finalizer = "finalizer_address";
 
     // Instantiate minter contract
     let msg = InstantiateMsg {
@@ -106,6 +107,7 @@ fn setup_minter_contract(
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -199,6 +201,7 @@ fn initialization() {
 
     // Check valid addr
     let addr = "earth1";
+    let finalizer = "finalizer_address";
     let res = deps.api.addr_validate(&(*addr));
     assert!(res.is_ok());
 
@@ -216,6 +219,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -245,6 +249,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -275,6 +280,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -304,6 +310,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -333,6 +340,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -362,6 +370,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -1222,6 +1231,7 @@ fn test_start_time_before_genesis() {
     let mut router = custom_mock_app();
     let (creator, _) = setup_accounts(&mut router);
     let num_tokens = 10;
+    let finalizer = "finalizer_address".to_string();
 
     // Upload contract code
     let sg721_code_id = router.store_code(contract_sg721());
@@ -1241,6 +1251,7 @@ fn test_start_time_before_genesis() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -1273,6 +1284,7 @@ fn test_update_start_time() {
     let mut router = custom_mock_app();
     let (creator, _) = setup_accounts(&mut router);
     let num_tokens = 10;
+    let finalizer = "finalizer_address".to_string();
 
     // Upload contract code
     let sg721_code_id = router.store_code(contract_sg721());
@@ -1292,6 +1304,7 @@ fn test_update_start_time() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -1332,6 +1345,7 @@ fn test_invalid_start_time() {
     let mut router = custom_mock_app();
     let (creator, _) = setup_accounts(&mut router);
     let num_tokens = 10;
+    let finalizer = "finalizer_address".to_string();
 
     // Upload contract code
     let sg721_code_id = router.store_code(contract_sg721());
@@ -1351,6 +1365,7 @@ fn test_invalid_start_time() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
+            finalizer: finalizer.to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),

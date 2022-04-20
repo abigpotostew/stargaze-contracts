@@ -1,6 +1,8 @@
 use crate::{state::CollectionInfo, ContractError};
-use cosmwasm_std::{Decimal, Empty};
+use cosmwasm_std::{Binary, Decimal, Empty};
 use cw721_base::msg::QueryMsg as Cw721QueryMsg;
+use cw721_base::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
+use cw_utils::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +11,7 @@ pub struct InstantiateMsg {
     pub name: String,
     pub symbol: String,
     pub minter: String,
+    pub finalizer: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
 }
 
@@ -28,7 +31,86 @@ impl RoyaltyInfoResponse {
     }
 }
 
-pub type ExecuteMsg = cw721_base::ExecuteMsg<Empty>;
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecuteMsg {
+    /// Transfer is a base message to move a token to another account without triggering actions
+    TransferNft { recipient: String, token_id: String },
+    /// Send is a base message to transfer a token to a contract and trigger an action
+    /// on the receiving contract.
+    SendNft {
+        contract: String,
+        token_id: String,
+        msg: Binary,
+    },
+    /// Allows operator to transfer / send the token from the owner's account.
+    /// If expiration is set, then this allowance has a time/height limit
+    Approve {
+        spender: String,
+        token_id: String,
+        expires: Option<Expiration>,
+    },
+    /// Remove previously granted Approval
+    Revoke { spender: String, token_id: String },
+    /// Allows operator to transfer / send any token from the owner's account.
+    /// If expiration is set, then this allowance has a time/height limit
+    ApproveAll {
+        operator: String,
+        expires: Option<Expiration>,
+    },
+    /// Remove previously granted ApproveAll permission
+    RevokeAll { operator: String },
+
+    /// Mint a new NFT, can only be called by the contract minter
+    Mint(MintMsg<Empty>),
+
+    /// Burn an NFT the sender has access to
+    Burn { token_id: String },
+    
+    FinalizeTokenUri { token_id: String, token_uri: String },
+}
+
+impl From<ExecuteMsg> for Cw721ExecuteMsg<Empty> {
+    fn from(msg: ExecuteMsg) -> Cw721ExecuteMsg<Empty> {
+        match msg {
+            ExecuteMsg::TransferNft {
+                recipient,
+                token_id,
+            } => Cw721ExecuteMsg::TransferNft {
+                recipient,
+                token_id,
+            },
+            ExecuteMsg::SendNft {
+                contract,
+                token_id,
+                msg,
+            } => Cw721ExecuteMsg::SendNft {
+                contract,
+                token_id,
+                msg,
+            },
+            ExecuteMsg::Approve {
+                spender,
+                token_id,
+                expires,
+            } => Cw721ExecuteMsg::Approve {
+                spender,
+                token_id,
+                expires,
+            },
+            ExecuteMsg::Revoke { spender, token_id } => {
+                Cw721ExecuteMsg::Revoke { spender, token_id }
+            }
+            ExecuteMsg::ApproveAll { operator, expires } => {
+                Cw721ExecuteMsg::ApproveAll { operator, expires }
+            }
+            ExecuteMsg::RevokeAll { operator } => Cw721ExecuteMsg::RevokeAll { operator },
+            ExecuteMsg::Mint(mint_msg) => Cw721ExecuteMsg::Mint(mint_msg),
+            ExecuteMsg::Burn { token_id } => Cw721ExecuteMsg::Burn { token_id },
+            _ => unreachable!("cannot convert {:?} to Cw721ExecuteMsg", msg),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
