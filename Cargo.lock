@@ -528,6 +528,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "imago-finalizer"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.2",
+ "cw-utils 0.13.2",
+ "cw2 0.13.2",
+ "cw721-base",
+ "minter_imago",
+ "schemars",
+ "serde",
+ "sg-multi-test",
+ "sg-std 0.10.0",
+ "sg721_imago",
+ "thiserror",
+ "url",
+ "whitelist",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -598,16 +621,16 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
- "cw-storage-plus 0.13.1",
- "cw-utils 0.13.1",
- "cw2 0.13.1",
+ "cw-storage-plus 0.13.2",
+ "cw-utils 0.13.2",
+ "cw2 0.13.2",
  "cw721",
  "cw721-base",
  "minter",
  "schemars",
  "serde",
  "sg-multi-test",
- "sg-std 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sg-std 0.10.0",
  "sg721_imago",
  "thiserror",
  "url",
@@ -954,14 +977,14 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.13.1",
- "cw-utils 0.13.1",
- "cw2 0.13.1",
+ "cw-storage-plus 0.13.2",
+ "cw-utils 0.13.2",
+ "cw2 0.13.2",
  "cw721",
  "cw721-base",
  "schemars",
  "serde",
- "sg-std 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sg-std 0.10.0",
  "sg721",
  "thiserror",
  "url",

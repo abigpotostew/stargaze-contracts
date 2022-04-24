@@ -29,6 +29,31 @@
       "additionalProperties": false
     },
     {
+      "description": "Finalize the token uri",
+      "type": "object",
+      "required": [
+        "finalize"
+      ],
+      "properties": {
+        "finalize": {
+          "type": "object",
+          "required": [
+            "token_uri",
+            "token_id"
+          ],
+          "properties": {
+            "token_uri": {
+              "type": "string"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Send is a base message to transfer a token to a contract and trigger an action on the receiving contract.",
       "type": "object",
       "required": [

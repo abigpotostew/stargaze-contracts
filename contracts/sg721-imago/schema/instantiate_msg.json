@@ -46,6 +46,9 @@
         "image": {
           "type": "string"
         },
+        "finalizer": {
+          "type": "string"
+        },
         "royalty_info": {
           "anyOf": [
             {

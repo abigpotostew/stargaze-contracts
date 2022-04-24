@@ -8,8 +8,6 @@ use sg_std::StargazeMsgWrapper;
 
 use crate::ContractError;
 use cw721::ContractInfoResponse;
-use cw721_base::ContractError as BaseError;
-use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use url::Url;
 use crate::ContractError::Unauthorized;
 
@@ -55,7 +53,7 @@ pub fn instantiate(
     
     // imago
     let finalizer = deps.api.addr_validate(&msg.finalizer)?;
-    FINALIZER.save(deps.storage, &finalizer);
+    FINALIZER.save(deps.storage, &finalizer)?;
 
     // sg721 instantiation
     if msg.collection_info.description.len() > MAX_DESCRIPTION_LENGTH as usize {
@@ -102,7 +100,7 @@ pub fn instantiate(
 }
 
 fn finalize_token_uri( deps: DepsMut,
-                     env: Env,
+                     _env: Env,
                      info: MessageInfo,
                     token_id:String,
                     token_uri:String,
