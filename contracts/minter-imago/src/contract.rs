@@ -18,7 +18,8 @@ use crate::msg::{
 use crate::state::{
     Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS, MINTER_LAST_BLOCK
 };
-use sg_std::{checked_fair_burn, StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
+use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
+use sg1::{checked_fair_burn};
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
 };
@@ -36,6 +37,8 @@ pub type SubMsg = cosmwasm_std::SubMsg<StargazeMsgWrapper>;
 const CONTRACT_NAME: &str = "crates.io:sg-minter-imago";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const DEV_ADDRESS: &str = "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
+
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
 
 // governance parameters
@@ -46,6 +49,8 @@ const AIRDROP_MINT_PRICE: u128 = 15_000_000;
 const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
+
+const BASETOKEN_URI: &str = "https://testnetmetadata.publicworks.art";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -113,9 +118,16 @@ pub fn instantiate(
         .whitelist
         .and_then(|w| deps.api.addr_validate(w.as_str()).ok());
 
+    let project_id_res = msg.base_token_uri.parse::<i32>();
+    if project_id_res.is_err() {
+        return Err(ContractError::InvalidBaseTokenURI);
+    }
+    let project_id = project_id_res.unwrap();
+    let base_token_uri = format!("{}/{}", BASETOKEN_URI, project_id);
+
     let config = Config {
         admin: info.sender.clone(),
-        base_token_uri: msg.base_token_uri,
+        base_token_uri,
         num_tokens: msg.num_tokens,
         sg721_code_id: msg.sg721_code_id,
         unit_price: msg.unit_price,
@@ -396,7 +408,7 @@ fn _execute_mint(
         Decimal::percent(MINT_FEE_PERCENT as u64)
     };
     let network_fee = mint_price.amount * fee_percent;
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128())?);
+    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), Some(Addr(DEV_ADDRESS.to_string())))?);
 
     let mintable_token_id = match token_id {
         Some(token_id) => {

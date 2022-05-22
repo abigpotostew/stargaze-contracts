@@ -42,7 +42,8 @@ schemars = "0.8.8"
 sg721 = { path = "../sg721", features = ["library"] }
 serde = { version = "1.0.133", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.30" }
-sg-std = "0.10.0"
+sg-std = "0.12.0"
+sg1 = "0.12.0"
 url = "2.2.2"
 cw721 = "0.13.1"
 cw721-base = { version = "0.13.1", features = ["library"] }

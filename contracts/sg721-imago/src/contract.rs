@@ -1,20 +1,18 @@
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to_binary};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
 use cw2::set_contract_version;
-
-use sg_std::checked_fair_burn;
+use cw721::ContractInfoResponse;
+use sg1::checked_fair_burn;
 use sg_std::StargazeMsgWrapper;
+use url::Url;
 
 use crate::ContractError;
-use cw721::ContractInfoResponse;
-use url::Url;
 use crate::ContractError::Unauthorized;
-
 use crate::msg::{
     CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
 };
-use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO, FINALIZER, TOKEN_FINALIZED};
+use crate::state::{COLLECTION_INFO, CollectionInfo, FINALIZER, RoyaltyInfo, TOKEN_FINALIZED};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-721-imago";
@@ -22,6 +20,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const MAX_DESCRIPTION_LENGTH: u32 = 512;
+
+const DEV_ADDRESS:&str= "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
 
 type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
@@ -35,7 +35,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE)?;
+    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, Some(Addr(devAddress.to_string())))?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
@@ -50,7 +50,7 @@ pub fn instantiate(
     Sg721ImagoContract::default()
         .minter
         .save(deps.storage, &minter)?;
-    
+
     // imago
     let finalizer = deps.api.addr_validate(&msg.finalizer)?;
     FINALIZER.save(deps.storage, &finalizer)?;
@@ -99,27 +99,26 @@ pub fn instantiate(
         .add_messages(fee_msgs))
 }
 
-fn finalize_token_uri( deps: DepsMut,
-                     _env: Env,
-                     info: MessageInfo,
-                    token_id:String,
-                    token_uri:String,
-) ->Result<Response, ContractError>{
+fn finalize_token_uri(deps: DepsMut,
+                      _env: Env,
+                      info: MessageInfo,
+                      token_id: String,
+                      token_uri: String,
+) -> Result<Response, ContractError> {
     //todo
     let finalizer = FINALIZER.load(deps.storage)?;
-    
-     if info.sender != finalizer {
-         return Err(Unauthorized{});
-     }
 
+    if info.sender != finalizer {
+        return Err(Unauthorized {});
+    }
 
     let token_finalized = (TOKEN_FINALIZED
         .key(token_id.clone())
         .may_load(deps.storage)?)
         .unwrap_or(false);
-    
+
     if token_finalized {
-        return Err(ContractError::Finalized{});
+        return Err(ContractError::Finalized {});
     }
 
     Sg721ImagoContract::default()
@@ -134,9 +133,9 @@ fn finalize_token_uri( deps: DepsMut,
                 got: token_id.to_string(),
             }),
         })?;
-    
+
     return Ok(Response::new()
-        .add_attribute("action", "finalize"))
+        .add_attribute("action", "finalize"));
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -147,7 +146,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::FinalizeTokenUri{token_id,token_uri} => finalize_token_uri(deps, env, info, token_id,token_uri),
+        ExecuteMsg::FinalizeTokenUri { token_id, token_uri } => finalize_token_uri(deps, env, info, token_id, token_uri),
         _ => Sg721ImagoContract::default()
             .execute(deps, env, info, msg.into())
             .map_err(ContractError::from),
@@ -185,14 +184,15 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::state::CollectionInfo;
+    use cosmwasm_std::{coins, Decimal, from_binary};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Decimal, Addr};
     use cw721::NftInfoResponse;
     use cw721_base::MintMsg;
     use sg_std::NATIVE_DENOM;
+
+    use crate::state::CollectionInfo;
+
+    use super::*;
 
     #[test]
     fn proper_initialization_no_royalties() {
@@ -211,7 +211,7 @@ mod tests {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
-            finalizer: "finalizer_address".to_string()
+            finalizer: "finalizer_address".to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
 
@@ -256,7 +256,7 @@ mod tests {
                     share: Decimal::percent(10),
                 }),
             },
-            finalizer: "finalizer_address".to_string()
+            finalizer: "finalizer_address".to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
 
@@ -275,14 +275,14 @@ mod tests {
             value.royalty_info
         );
     }
-    
+
     #[test]
     fn finalization() {
         let mut deps = mock_dependencies();
         let creator = String::from("creator");
         let collection = String::from("collection0");
         const MINTER: &str = "minter";
-        
+
         let msg = InstantiateMsg {
             name: collection,
             symbol: String::from("BOBO"),
@@ -298,7 +298,7 @@ mod tests {
                     share: Decimal::percent(10),
                 }),
             },
-            finalizer: "finalizer_address".to_string()
+            finalizer: "finalizer_address".to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
 
@@ -309,23 +309,23 @@ mod tests {
         // mint nft
         let token_id = "1".to_string();
         let token_uri = "https://imago.com".to_string();
-        
-        let exec_mint_msg = Cw721ExecuteMsg::Mint(MintMsg::<Empty> {
+
+        let exec_mint_msg = ExecuteMsg::Mint(MintMsg::<Empty> {
             token_id: token_id.clone(),
             owner: String::from("medusa"),
             token_uri: Some(token_uri.clone()),
             extension: Empty {},
         });
-        
+
         let allowed = mock_info(MINTER, &[]);
         let _ = Sg721ImagoContract::default()
-            .execute(deps.as_mut(), mock_env(), allowed.clone(), exec_mint_msg)
+            .execute(deps.as_mut(), mock_env(), allowed.clone(), exec_mint_msg.into())
             .unwrap();
 
         let query_msg: QueryMsg = QueryMsg::NftInfo {
             token_id: (&token_id).to_string(),
         };
-        
+
         // confirm response is the same
         let res: NftInfoResponse<Empty> =
             from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
@@ -352,7 +352,5 @@ mod tests {
             res.token_uri,
             Some(format!("{}", new_token_uri))
         );
-
-        
     }
 }

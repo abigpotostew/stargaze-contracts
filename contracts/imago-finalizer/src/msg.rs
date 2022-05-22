@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     TransferOwnership { to: String },
-    ChangeSigner { to: String },
+    ChangeSigner { to: String, enabled: bool },
     Finalize { contract:String, token_id: String, token_uri: String },
 }
 
@@ -24,5 +24,5 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
-    pub signer: String,
+    pub signers: Vec<String>,
 }
