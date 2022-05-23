@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
-use cw_utils::{may_pay, parse_reply_instantiate_data};
+use cw_utils::{maybe_addr, may_pay, parse_reply_instantiate_data};
 use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
 use url::Url;
 
@@ -50,7 +50,7 @@ const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
 
-const BASETOKEN_URI: &str = "https://testnetmetadata.publicworks.art";
+const BASETOKEN_URI: &str = "https://metadata.publicworks.art";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -76,12 +76,6 @@ pub fn instantiate(
             min: 1,
             got: msg.per_address_limit,
         });
-    }
-
-    // Check that base_token_uri is a valid IPFS uri
-    let parsed_token_uri = Url::parse(&msg.base_token_uri)?;
-    if parsed_token_uri.scheme() != "ipfs" && parsed_token_uri.scheme() != "https" {
-        return Err(ContractError::InvalidBaseTokenURI {});
     }
 
     // Check that the price is in the correct denom ('ustars')
@@ -120,7 +114,8 @@ pub fn instantiate(
 
     let project_id_res = msg.base_token_uri.parse::<i32>();
     if project_id_res.is_err() {
-        return Err(ContractError::InvalidBaseTokenURI);
+        print!("PARSING ERROR {} error {}",msg.base_token_uri, project_id_res.unwrap_err());
+        return Err(ContractError::InvalidBaseTokenURI{});
     }
     let project_id = project_id_res.unwrap();
     let base_token_uri = format!("{}/{}", BASETOKEN_URI, project_id);
@@ -408,7 +403,8 @@ fn _execute_mint(
         Decimal::percent(MINT_FEE_PERCENT as u64)
     };
     let network_fee = mint_price.amount * fee_percent;
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), Some(Addr(DEV_ADDRESS.to_string())))?);
+    let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
+    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr?)?);
 
     let mintable_token_id = match token_id {
         Some(token_id) => {

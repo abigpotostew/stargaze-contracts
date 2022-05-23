@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to_binary};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to_binary};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
@@ -6,6 +6,7 @@ use cw721::ContractInfoResponse;
 use sg1::checked_fair_burn;
 use sg_std::StargazeMsgWrapper;
 use url::Url;
+use cw_utils::{maybe_addr};
 
 use crate::ContractError;
 use crate::ContractError::Unauthorized;
@@ -21,7 +22,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CREATION_FEE: u128 = 1_000_000_000;
 const MAX_DESCRIPTION_LENGTH: u32 = 512;
 
-const DEV_ADDRESS:&str= "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
+pub const DEV_ADDRESS:&str= "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
 
 type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
@@ -35,7 +36,8 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, Some(Addr(devAddress.to_string())))?;
+    let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
+    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, addr?)?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
