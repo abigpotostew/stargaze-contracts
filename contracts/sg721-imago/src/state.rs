@@ -18,6 +18,7 @@ pub struct RoyaltyInfo {
     pub share: Decimal,
 }
 
+pub const CODE_URI: Item<String> = Item::new("code_uri");
 pub const COLLECTION_INFO: Item<CollectionInfo<RoyaltyInfo>> = Item::new("collection_info");
 pub const TOKEN_FINALIZED: Map<String, bool> = Map::new("token_finalized");
 pub const FINALIZER: Item<Addr> = Item::new("finalizer");

@@ -10,10 +10,8 @@ use cw_utils::{maybe_addr};
 
 use crate::ContractError;
 use crate::ContractError::Unauthorized;
-use crate::msg::{
-    CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
-};
-use crate::state::{COLLECTION_INFO, CollectionInfo, FINALIZER, RoyaltyInfo, TOKEN_FINALIZED};
+use crate::msg::{CodeUriResponse, CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse};
+use crate::state::{CODE_URI, COLLECTION_INFO, CollectionInfo, FINALIZER, RoyaltyInfo, TOKEN_FINALIZED};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-721-imago";
@@ -69,8 +67,12 @@ pub fn instantiate(
         Url::parse(external_link)?;
     }
 
-    Url::parse(&msg.collection_info.code_uri)?;
+    Url::parse(&msg.code_uri)?;
     // todo validate it is ipfs
+    let parsed_token_uri = Url::parse(&msg.code_uri)?;
+    if parsed_token_uri.scheme() != "ipfs" {
+        return Err(ContractError::InvalidCodeUri {});
+    }
 
     let royalty_info: Option<RoyaltyInfo> = match msg.collection_info.royalty_info {
         Some(royalty_info) => Some(RoyaltyInfo {
@@ -86,12 +88,12 @@ pub fn instantiate(
         creator: msg.collection_info.creator,
         description: msg.collection_info.description,
         image: msg.collection_info.image,
-        code_uri: msg.collection_info.code_uri,
         external_link: msg.collection_info.external_link,
         royalty_info,
     };
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
+    CODE_URI.save(deps.storage, &msg.code_uri)?;
 
     Ok(Response::default()
         .add_attribute("action", "instantiate")
@@ -159,6 +161,7 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CollectionInfo {} => to_binary(&query_config(deps)?),
+        QueryMsg::CodeUri {} => to_binary(&query_code_uri(deps)?),
         _ => Sg721ImagoContract::default().query(deps, env, msg.into()),
     }
 }
@@ -178,9 +181,16 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
         creator: info.creator,
         description: info.description,
         image: info.image,
-        code_uri: info.code_uri,
         external_link: info.external_link,
         royalty_info: royalty_info_res,
+    })
+}
+
+fn query_code_uri(deps: Deps) -> StdResult<CodeUriResponse> {
+    let code_uri = CODE_URI.load(deps.storage)?;
+
+    Ok(CodeUriResponse {
+        code_uri,
     })
 }
 
@@ -205,11 +215,11 @@ mod tests {
             name: collection,
             symbol: String::from("BOBO"),
             minter: String::from("minter"),
+            code_uri: "ipfs://abc123".to_string(),
             collection_info: CollectionInfo {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
-                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
@@ -247,11 +257,11 @@ mod tests {
             name: collection,
             symbol: String::from("BOBO"),
             minter: String::from("minter"),
+            code_uri: "ipfs://abc123".to_string(),
             collection_info: CollectionInfo {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
-                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: creator.clone(),
@@ -289,11 +299,11 @@ mod tests {
             name: collection,
             symbol: String::from("BOBO"),
             minter: String::from("minter"),
+            code_uri: "ipfs://abc123".to_string(),
             collection_info: CollectionInfo {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
-                code_uri: "ipfs://abc123".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: Some(RoyaltyInfoResponse {
                     payment_address: creator.clone(),

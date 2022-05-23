@@ -155,6 +155,7 @@ pub enum QueryMsg {
     },
     Minter {},
     CollectionInfo {},
+    CodeUri {},
 }
 
 impl From<QueryMsg> for Cw721QueryMsg {
@@ -229,5 +230,9 @@ pub struct CollectionInfoResponse {
     pub image: String,
     pub external_link: Option<String>,
     pub royalty_info: Option<RoyaltyInfoResponse>,
-    
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CodeUriResponse {
+    pub code_uri: String,
 }

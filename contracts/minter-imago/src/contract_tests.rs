@@ -85,9 +85,9 @@ fn setup_minter_contract(
             symbol: String::from("TEST"),
             minter: creator.to_string(),
             finalizer:creator.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
-                code_uri:"test_code_url".to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
@@ -196,9 +196,9 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
-                code_uri:"test_code_url".to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
                 external_link: Some("https://example.com/external.html".to_string()),
@@ -226,8 +226,8 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
-                code_uri:"test_code_url".to_string(),
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
@@ -257,8 +257,8 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
-                code_uri:"test_code_url".to_string(),
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
@@ -287,8 +287,8 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
-                code_uri:"test_code_url".to_string(),
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
@@ -317,8 +317,8 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
-                code_uri:"test_code_url".to_string(),
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),
@@ -347,8 +347,8 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
-                code_uri:"test_code_url".to_string(),
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
                 image: "https://example.com/image.png".to_string(),

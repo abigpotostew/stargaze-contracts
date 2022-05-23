@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("InvalidCreationFee")]
     InvalidCreationFee {},
 
+    #[error("Invalid code_uri")]
+    InvalidCodeUri {},
+
     #[error("token_id already claimed")]
     Claimed {},
 
