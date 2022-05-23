@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub symbol: String,
     pub minter: String,
     pub finalizer: String,
+    pub code_uri: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
 }
 
@@ -226,7 +227,6 @@ pub struct CollectionInfoResponse {
     pub creator: String,
     pub description: String,
     pub image: String,
-    pub code_uri: String,
     pub external_link: Option<String>,
     pub royalty_info: Option<RoyaltyInfoResponse>,
     
