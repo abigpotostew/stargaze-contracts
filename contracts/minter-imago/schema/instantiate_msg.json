@@ -107,7 +107,9 @@
         "collection_info",
         "minter",
         "name",
-        "symbol"
+        "symbol",
+        "code_uri",
+        "finalizer"
       ],
       "properties": {
         "collection_info": {
@@ -120,6 +122,12 @@
           "type": "string"
         },
         "symbol": {
+          "type": "string"
+        },
+        "code_uri": {
+          "type": "string"
+        },
+        "finalizer": {
           "type": "string"
         }
       }

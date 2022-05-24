@@ -139,6 +139,18 @@
     {
       "type": "object",
       "required": [
+        "code_uri"
+      ],
+      "properties": {
+        "num_tokens": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "contract_info"
       ],
       "properties": {
