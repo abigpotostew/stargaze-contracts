@@ -227,9 +227,9 @@ mod tests {
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
 
-        // make sure instantiate has the burn messages
+        // make sure instantiate has the burn messages, and fairburn
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.messages.len());
+        assert_eq!(3, res.messages.len());
 
         // let's query the collection info
         let res = query(deps.as_ref(), mock_env(), QueryMsg::CollectionInfo {}).unwrap();
@@ -239,10 +239,6 @@ mod tests {
         assert_eq!(
             "https://example.com/external.html",
             value.external_link.unwrap()
-        );
-        assert_eq!(
-            "ipfs://abc123",
-            value.code_uri
         );
         assert_eq!(None, value.royalty_info);
     }
@@ -271,10 +267,11 @@ mod tests {
             finalizer: "finalizer_address".to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
-
+        
         // make sure instantiate has the burn messages
+        // it also has the dev burn message now
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.messages.len());
+        assert_eq!(3, res.messages.len());
 
         // let's query the collection info
         let res = query(deps.as_ref(), mock_env(), QueryMsg::CollectionInfo {}).unwrap();
@@ -292,6 +289,7 @@ mod tests {
     fn finalization() {
         let mut deps = mock_dependencies();
         let creator = String::from("creator");
+        let finalizer = String::from("finalizer_address");
         let collection = String::from("collection0");
         const MINTER: &str = "minter";
 
@@ -310,13 +308,13 @@ mod tests {
                     share: Decimal::percent(10),
                 }),
             },
-            finalizer: "finalizer_address".to_string(),
+            finalizer: finalizer.to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
 
-        // make sure instantiate has the burn messages
+        // make sure instantiate has the burn messages and fair burn
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.messages.len());
+        assert_eq!(3, res.messages.len());
 
         // mint nft
         let token_id = "1".to_string();
@@ -349,10 +347,11 @@ mod tests {
             token_uri: new_token_uri.clone(),
             token_id,
         };
+        let finalizer_allowed = mock_info(&finalizer, &[]);
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            allowed.clone(),
+            finalizer_allowed.clone(),
             finalize_token_uri_msg,
         )
             .unwrap();

@@ -4,7 +4,7 @@ use cosmwasm_std::{Api, Coin};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
-use sg721_imago::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse};
+use sg721_imago::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse, QueryMsg as Sg721ImagoQueryMsg, CodeUriResponse};
 use sg721_imago::state::CollectionInfo;
 use sg_multi_test::StargazeApp;
 use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
@@ -347,7 +347,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            code_uri: "test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -520,4 +520,14 @@ fn happy_path() {
         }),
     );
     assert!(res.is_err());
+
+    // Check code URI
+    let res: CodeUriResponse = router
+        .wrap()
+        .query_wasm_smart(
+            config.sg721_address.clone(),
+            &Sg721ImagoQueryMsg::CodeUri {},
+        )
+        .unwrap();
+    assert_eq!(res.code_uri, "test_code_url");
 }
