@@ -1,3 +1,5 @@
+use std::borrow::{Borrow, BorrowMut};
+use std::ops::Deref;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -8,7 +10,6 @@ use cw2::set_contract_version;
 use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_utils::{maybe_addr, may_pay, parse_reply_instantiate_data};
 use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
-use url::Url;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -190,6 +191,7 @@ pub fn execute(
             execute_set_whitelist(deps, env, info, &whitelist)
         }
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
+        ExecuteMsg::BurnRemaining {} => execute_burn_remaining(deps, env, info),
     }
 }
 
@@ -469,6 +471,35 @@ fn _execute_mint(
         .add_attribute("network_fee", network_fee)
         .add_attribute("mint_price", mint_price.amount)
         .add_messages(msgs))
+}
+
+pub fn execute_burn_remaining(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // Check only admin
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    }
+    MINTABLE_NUM_TOKENS.save(deps.storage, &0)?;
+
+    let mut token_ids = vec![];
+    for mapping in MINTABLE_TOKEN_IDS.range(deps.storage, None, None, Order::Ascending) {
+        let (token_id, _) = mapping?;
+        token_ids.push(token_id);
+    }
+    for (_, token_id) in token_ids.iter().enumerate() {
+        MINTABLE_TOKEN_IDS.remove( deps.storage, *token_id);
+    }
+
+    Ok(Response::default()
+        .add_attribute("action", "burn_remaining")
+        .add_attribute("sender", info.sender))
 }
 
 pub fn execute_update_start_time(

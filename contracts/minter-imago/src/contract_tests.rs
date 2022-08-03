@@ -84,8 +84,8 @@ fn setup_minter_contract(
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
-            finalizer:creator.to_string(),
-            code_uri:"test_code_url".to_string(),
+            finalizer: creator.to_string(),
+            code_uri: "test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -101,10 +101,11 @@ fn setup_minter_contract(
     let minter_addr = router
         .instantiate_contract(
             minter_code_id,
+            //wtf is this failing
             creator.clone(),
             &msg,
             &creation_fee,
-            "Minter",
+            "Minter Imago",
             None,
         )
         .unwrap();
@@ -492,7 +493,7 @@ fn happy_path() {
     };
     let res: OwnerOfResponse = router
         .wrap()
-        .query_wasm_smart(config.sg721_address, &query_owner_msg)
+        .query_wasm_smart(config.sg721_address.clone(), &query_owner_msg)
         .unwrap();
     assert_eq!(res.owner, buyer.to_string());
 
@@ -530,4 +531,102 @@ fn happy_path() {
         )
         .unwrap();
     assert_eq!(res.code_uri, "test_code_url");
+}
+
+
+#[test]
+fn burn_remaining() {
+    let mut router = custom_mock_app();
+    setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
+    let (creator, buyer) = setup_accounts(&mut router);
+    let num_tokens = 10;
+    let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+
+    // Default start time genesis mint time
+    let res: StartTimeResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::StartTime {})
+        .unwrap();
+    assert_eq!(
+        res.start_time,
+        Timestamp::from_nanos(GENESIS_MINT_START_TIME).to_string()
+    );
+
+    setup_block_time(&mut router, GENESIS_MINT_START_TIME + 1);
+
+    // Fail with incorrect tokens
+    let mint_msg = ExecuteMsg::Mint {};
+    let err = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(UNIT_PRICE + 100, NATIVE_DENOM),
+    );
+    assert!(err.is_err());
+
+    // Succeeds if funds are sent
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(UNIT_PRICE, NATIVE_DENOM),
+    );
+    assert!(res.is_ok());
+
+
+    let res: MintCountResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintCount {
+                address: buyer.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.count, 9);
+    assert_eq!(res.address, buyer.to_string());
+
+    // Errors if burn remaining as buyer
+    let mint_msg = ExecuteMsg::BurnRemaining {};
+    let res = router.execute_contract(
+        buyer,
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(0, NATIVE_DENOM),
+    );
+    assert!(res.is_err());
+
+    // check num mintable tokens is unchanged
+    let res: MintableNumTokensResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintableNumTokens {},
+        )
+        .unwrap();
+    assert_eq!(res.count, 9);
+    // assert!(res.is_err());
+
+    // Allow burn remaining as creator
+    let mint_msg = ExecuteMsg::BurnRemaining {};
+    let res = router.execute_contract(
+        creator,
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(0, NATIVE_DENOM),
+    );
+    assert!(!res.is_err());
+
+    // check num mintable tokens is zero
+    let res: MintableNumTokensResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintableNumTokens {},
+        )
+        .unwrap();
+    assert_eq!(res.count, 0);
+    // assert!(res.is_err());
+
 }
