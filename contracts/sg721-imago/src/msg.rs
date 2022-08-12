@@ -69,6 +69,8 @@ pub enum ExecuteMsg {
     Burn { token_id: String },
     
     FinalizeTokenUri { token_id: String, token_uri: String },
+    
+    SetCodeUri { uri: String },
 }
 
 impl From<ExecuteMsg> for Cw721ExecuteMsg<Empty> {

@@ -85,7 +85,7 @@ fn setup_minter_contract(
             symbol: String::from("TEST"),
             minter: creator.to_string(),
             finalizer: creator.to_string(),
-            code_uri: "test_code_url".to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: creator.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -101,7 +101,7 @@ fn setup_minter_contract(
     let minter_addr = router
         .instantiate_contract(
             minter_code_id,
-            //wtf is this failing
+            // failing here
             creator.clone(),
             &msg,
             &creation_fee,
@@ -197,6 +197,36 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
+            code_uri:"ipfs://test_code_url".to_string(),
+            collection_info: CollectionInfo {
+                creator: info.sender.to_string(),
+                description: String::from("Stargaze Monkeys"),
+                image: "https://example.com/image.png".to_string(),
+                external_link: Some("https://example.com/external.html".to_string()),
+                royalty_info: Some(RoyaltyInfoResponse {
+                    payment_address: info.sender.to_string(),
+                    share: Decimal::percent(10),
+                }),
+            },
+        },
+    };
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+
+    // Invalid base token uri returns error
+    let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
+    let msg = InstantiateMsg {
+        unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
+        num_tokens: 100,
+        start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
+        per_address_limit: 5,
+        whitelist: None,
+        base_token_uri: "a".to_string(),
+        sg721_code_id: 1,
+        sg721_instantiate_msg: Sg721InstantiateMsg {
+            name: String::from("TEST"),
+            symbol: String::from("TEST"),
+            minter: info.sender.to_string(),
+            finalizer:info.sender.to_string(),
             code_uri:"test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
@@ -212,7 +242,7 @@ fn initialization() {
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
 
-    // Invalid uri returns error
+    // Invalid base token uri returns error
     let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
@@ -227,7 +257,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            code_uri: "uri_missing_protocol".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -258,7 +288,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            code_uri:"ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -288,7 +318,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            code_uri:"ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -318,7 +348,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            code_uri:"ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -348,7 +378,7 @@ fn initialization() {
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
             finalizer:info.sender.to_string(),
-            code_uri: "test_code_url".to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -530,7 +560,7 @@ fn happy_path() {
             &Sg721ImagoQueryMsg::CodeUri {},
         )
         .unwrap();
-    assert_eq!(res.code_uri, "test_code_url");
+    assert_eq!(res.code_uri, "ipfs://test_code_url");
 }
 
 
@@ -539,7 +569,7 @@ fn burn_remaining() {
     let mut router = custom_mock_app();
     setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
     let (creator, buyer) = setup_accounts(&mut router);
-    let num_tokens = 10;
+    let num_tokens = 2;
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
 
     // Default start time genesis mint time
@@ -584,16 +614,16 @@ fn burn_remaining() {
             },
         )
         .unwrap();
-    assert_eq!(res.count, 9);
+    assert_eq!(res.count, 1);
     assert_eq!(res.address, buyer.to_string());
 
     // Errors if burn remaining as buyer
-    let mint_msg = ExecuteMsg::BurnRemaining {};
+    let burn_msg = ExecuteMsg::BurnRemaining {};
     let res = router.execute_contract(
-        buyer,
+        buyer.clone(),
         minter_addr.clone(),
-        &mint_msg,
-        &coins(0, NATIVE_DENOM),
+        &burn_msg,
+        &[],
     );
     assert!(res.is_err());
 
@@ -605,18 +635,17 @@ fn burn_remaining() {
             &QueryMsg::MintableNumTokens {},
         )
         .unwrap();
-    assert_eq!(res.count, 9);
-    // assert!(res.is_err());
+    assert_eq!(res.count, 1);
 
     // Allow burn remaining as creator
     let mint_msg = ExecuteMsg::BurnRemaining {};
     let res = router.execute_contract(
-        creator,
+        creator.clone(),
         minter_addr.clone(),
         &mint_msg,
-        &coins(0, NATIVE_DENOM),
+        &[],
     );
-    assert!(!res.is_err());
+    assert!(res.is_ok());
 
     // check num mintable tokens is zero
     let res: MintableNumTokensResponse = router
@@ -627,6 +656,5 @@ fn burn_remaining() {
         )
         .unwrap();
     assert_eq!(res.count, 0);
-    // assert!(res.is_err());
 
 }

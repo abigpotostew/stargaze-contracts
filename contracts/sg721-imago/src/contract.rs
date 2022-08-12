@@ -11,7 +11,7 @@ use cw_utils::{maybe_addr};
 use crate::ContractError;
 use crate::ContractError::Unauthorized;
 use crate::msg::{CodeUriResponse, CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse};
-use crate::state::{CODE_URI, COLLECTION_INFO, CollectionInfo, FINALIZER, RoyaltyInfo, TOKEN_FINALIZED};
+use crate::state::{CODE_URI, COLLECTION_INFO, CollectionInfo, FINALIZER, RoyaltyInfo};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-721-imago";
@@ -20,7 +20,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CREATION_FEE: u128 = 1_000_000_000;
 const MAX_DESCRIPTION_LENGTH: u32 = 512;
 
-pub const DEV_ADDRESS:&str= "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
+pub const DEV_ADDRESS: &str = "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
 
 type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
@@ -67,11 +67,9 @@ pub fn instantiate(
         Url::parse(external_link)?;
     }
 
-    Url::parse(&msg.code_uri)?;
-    // todo validate it is ipfs
-    let parsed_token_uri = Url::parse(&msg.code_uri)?;
-    if parsed_token_uri.scheme() != "ipfs" {
-        return Err(ContractError::InvalidCodeUri {});
+    let maybe_err = validate_code_uri(msg.code_uri.clone());
+    if maybe_err.is_some() {
+        return Err(maybe_err.unwrap());
     }
 
     let royalty_info: Option<RoyaltyInfo> = match msg.collection_info.royalty_info {
@@ -103,6 +101,17 @@ pub fn instantiate(
         .add_messages(fee_msgs))
 }
 
+fn validate_code_uri(uri: String) -> Option<ContractError> {
+    let parsed_token_uri = Url::parse(&uri);
+    if parsed_token_uri.is_err() {
+        return Some((ContractError::InvalidCodeUri {}));
+    }
+    if parsed_token_uri.unwrap().scheme() != "ipfs" {
+        return Some((ContractError::InvalidCodeUri {}));
+    }
+    return None;
+}
+
 fn finalize_token_uri(deps: DepsMut,
                       _env: Env,
                       info: MessageInfo,
@@ -116,14 +125,14 @@ fn finalize_token_uri(deps: DepsMut,
         return Err(Unauthorized {});
     }
 
-    let token_finalized = (TOKEN_FINALIZED
-        .key(token_id.clone())
-        .may_load(deps.storage)?)
-        .unwrap_or(false);
-
-    if token_finalized {
-        return Err(ContractError::Finalized {});
-    }
+    // let token_finalized = (TOKEN_FINALIZED
+    //     .key(token_id.clone())
+    //     .may_load(deps.storage)?)
+    //     .unwrap_or(false);
+    // 
+    // if token_finalized {
+    //     return Err(ContractError::Finalized {});
+    // }
 
     Sg721ImagoContract::default()
         .tokens
@@ -142,6 +151,28 @@ fn finalize_token_uri(deps: DepsMut,
         .add_attribute("action", "finalize"));
 }
 
+fn execute_set_code_uri(deps: DepsMut,
+                        _env: Env,
+                        info: MessageInfo,
+                        uri: String,
+) -> Result<Response, ContractError> {
+    let config = COLLECTION_INFO.load(deps.storage)?;
+
+    if info.sender != config.creator {
+        return Err(Unauthorized {});
+    }
+
+    let maybe_err = validate_code_uri(uri.clone());
+    if maybe_err.is_some() {
+        return Err(maybe_err.unwrap());
+    }
+
+    CODE_URI.save(deps.storage, &uri.clone())?;
+    
+    return Ok(Response::new()
+        .add_attribute("action", "set_code_uri"));
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -151,6 +182,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::FinalizeTokenUri { token_id, token_uri } => finalize_token_uri(deps, env, info, token_id, token_uri),
+        ExecuteMsg::SetCodeUri { uri } => execute_set_code_uri(deps, env, info, uri),
         _ => Sg721ImagoContract::default()
             .execute(deps, env, info, msg.into())
             .map_err(ContractError::from),
@@ -267,7 +299,7 @@ mod tests {
             finalizer: "finalizer_address".to_string(),
         };
         let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
-        
+
         // make sure instantiate has the burn messages
         // it also has the dev burn message now
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -287,6 +319,86 @@ mod tests {
 
     #[test]
     fn finalization() {
+        let mut deps = mock_dependencies();
+        let creator = String::from("creator");
+        let finalizer = String::from("finalizer_address");
+        let collection = String::from("collection0");
+        const MINTER: &str = "minter";
+
+        let msg = InstantiateMsg {
+            name: collection,
+            symbol: String::from("BOBO"),
+            minter: String::from("minter"),
+            code_uri: "ipfs://abc123".to_string(),
+            collection_info: CollectionInfo {
+                creator: String::from("creator"),
+                description: String::from("Stargaze Monkeys"),
+                image: "https://example.com/image.png".to_string(),
+                external_link: Some("https://example.com/external.html".to_string()),
+                royalty_info: Some(RoyaltyInfoResponse {
+                    payment_address: creator.clone(),
+                    share: Decimal::percent(10),
+                }),
+            },
+            finalizer: finalizer.to_string(),
+        };
+        let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
+
+        // make sure instantiate has the burn messages and fair burn
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(3, res.messages.len());
+
+        // mint nft
+        let token_id = "1".to_string();
+        let token_uri = "https://imago.com".to_string();
+
+        let exec_mint_msg = ExecuteMsg::Mint(MintMsg::<Empty> {
+            token_id: token_id.clone(),
+            owner: String::from("medusa"),
+            token_uri: Some(token_uri.clone()),
+            extension: Empty {},
+        });
+
+        let allowed = mock_info(MINTER, &[]);
+        let _ = Sg721ImagoContract::default()
+            .execute(deps.as_mut(), mock_env(), allowed.clone(), exec_mint_msg.into())
+            .unwrap();
+
+        let query_msg: QueryMsg = QueryMsg::NftInfo {
+            token_id: (&token_id).to_string(),
+        };
+
+        // confirm response is the same
+        let res: NftInfoResponse<Empty> =
+            from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
+        assert_eq!(res.token_uri, Some(token_uri));
+
+        // update base token uri
+        let new_token_uri: String = "ipfs://abc123newuri".to_string();
+        let finalize_token_uri_msg = ExecuteMsg::FinalizeTokenUri {
+            token_uri: new_token_uri.clone(),
+            token_id,
+        };
+        let finalizer_allowed = mock_info(&finalizer, &[]);
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            finalizer_allowed.clone(),
+            finalize_token_uri_msg,
+        )
+            .unwrap();
+
+        let res: NftInfoResponse<Empty> =
+            from_binary(&query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
+
+        assert_eq!(
+            res.token_uri,
+            Some(format!("{}", new_token_uri))
+        );
+    }
+
+    #[test]
+    fn set_code_uri() {
         let mut deps = mock_dependencies();
         let creator = String::from("creator");
         let finalizer = String::from("finalizer_address");

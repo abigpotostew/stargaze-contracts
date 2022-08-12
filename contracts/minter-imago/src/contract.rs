@@ -17,10 +17,11 @@ use crate::msg::{
     MintableNumTokensResponse, QueryMsg, StartTimeResponse,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS, MINTER_LAST_BLOCK
+    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS, MINTER_LAST_BLOCK,
 };
 use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
 use sg1::{checked_fair_burn};
+use url::Url;
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
 };
@@ -29,7 +30,7 @@ use whitelist::msg::{
 Stew todo
 - Inherit or at least import functions and types from sg721 minter
 - Use BeforeMint callback on minter so my logic can be injected
-*/
+ */
 
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type SubMsg = cosmwasm_std::SubMsg<StargazeMsgWrapper>;
@@ -115,11 +116,19 @@ pub fn instantiate(
 
     let project_id_res = msg.base_token_uri.parse::<i32>();
     if project_id_res.is_err() {
-        print!("PARSING ERROR {} error {}",msg.base_token_uri, project_id_res.unwrap_err());
-        return Err(ContractError::InvalidBaseTokenURI{});
+        print!("PARSING ERROR {} error {}", msg.base_token_uri, project_id_res.unwrap_err());
+        return Err(ContractError::InvalidBaseTokenURI {});
     }
     let project_id = project_id_res.unwrap();
     let base_token_uri = format!("{}/{}", BASETOKEN_URI, project_id);
+
+    let parsed_code_uri = Url::parse(&msg.sg721_instantiate_msg.code_uri);
+    if parsed_code_uri.is_err() {
+        return Err(ContractError::InvalidCodeUri {});
+    }
+    if parsed_code_uri.unwrap().scheme() != "ipfs" {
+        return Err(ContractError::InvalidCodeUri {});
+    }
 
     let config = Config {
         admin: info.sender.clone(),
@@ -155,7 +164,7 @@ pub fn instantiate(
             admin: Some(info.sender.to_string()),
             label: String::from("Fixed price minter"),
         }
-        .into(),
+            .into(),
         id: INSTANTIATE_SG721_REPLY_ID,
         gas_limit: None,
         reply_on: ReplyOn::Success,
@@ -377,7 +386,7 @@ fn _execute_mint(
     action: &str,
     is_admin: bool,
     recipient: Option<Addr>,
-    token_id: Option<u32>
+    token_id: Option<u32>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let sg721_address = SG721_ADDRESS.load(deps.storage)?;
@@ -473,6 +482,7 @@ fn _execute_mint(
         .add_messages(msgs))
 }
 
+
 pub fn execute_burn_remaining(
     deps: DepsMut,
     env: Env,
@@ -494,7 +504,7 @@ pub fn execute_burn_remaining(
         token_ids.push(token_id);
     }
     for (_, token_id) in token_ids.iter().enumerate() {
-        MINTABLE_TOKEN_IDS.remove( deps.storage, *token_id);
+        MINTABLE_TOKEN_IDS.remove(deps.storage, *token_id);
     }
 
     Ok(Response::default()
@@ -596,7 +606,7 @@ fn mint_count(deps: Deps, info: &MessageInfo) -> Result<u32, StdError> {
     let mint_count = (MINTER_ADDRS
         .key(info.sender.clone())
         .may_load(deps.storage)?)
-    .unwrap_or(0);
+        .unwrap_or(0);
     Ok(mint_count)
 }
 
@@ -604,7 +614,7 @@ fn last_block_minted(deps: Deps, info: &MessageInfo) -> Result<u64, StdError> {
     let last_block_minted = (MINTER_LAST_BLOCK
         .key(info.sender.clone())
         .may_load(deps.storage)?)
-    .unwrap_or(0);
+        .unwrap_or(0);
     Ok(last_block_minted)
 }
 

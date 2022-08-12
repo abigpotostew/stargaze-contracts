@@ -86,6 +86,9 @@ pub enum ContractError {
 
     #[error("MaxOneMintPerBlock")]
     MaxOneMintPerBlock {},
+
+    #[error("InvalidCodeUri")]
+    InvalidCodeUri {},
 }
 
 impl From<ParseError> for ContractError {
