@@ -1,29 +1,28 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::ops::Deref;
+use cosmwasm_std::{
+    Addr, BankMsg, Binary, coin, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
+    Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, WasmMsg,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
-    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
-};
 use cw2::set_contract_version;
-use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
-use cw_utils::{maybe_addr, may_pay, parse_reply_instantiate_data};
+use cw721_base::{MintMsg, msg::ExecuteMsg as Cw721ExecuteMsg};
+use cw_utils::{may_pay, maybe_addr, parse_reply_instantiate_data};
+use sg1::checked_fair_burn;
+use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
+use url::Url;
+
 use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
+use whitelist::msg::{
+    ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
+    MintPriceResponse, QueryMsg, StartTimeResponse,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS, MINTER_LAST_BLOCK,
-};
-use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
-use sg1::{checked_fair_burn};
-use url::Url;
-use whitelist::msg::{
-    ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
+    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, MINTER_LAST_BLOCK, SG721_ADDRESS,
 };
 
 /**
@@ -485,7 +484,7 @@ fn _execute_mint(
 
 pub fn execute_burn_remaining(
     deps: DepsMut,
-    env: Env,
+    _: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;

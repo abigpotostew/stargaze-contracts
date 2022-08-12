@@ -3,10 +3,10 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 use cw721::ContractInfoResponse;
+use cw_utils::maybe_addr;
 use sg1::checked_fair_burn;
 use sg_std::StargazeMsgWrapper;
 use url::Url;
-use cw_utils::{maybe_addr};
 
 use crate::ContractError;
 use crate::ContractError::Unauthorized;
@@ -104,10 +104,10 @@ pub fn instantiate(
 fn validate_code_uri(uri: String) -> Option<ContractError> {
     let parsed_token_uri = Url::parse(&uri);
     if parsed_token_uri.is_err() {
-        return Some((ContractError::InvalidCodeUri {}));
+        return Some(ContractError::InvalidCodeUri {});
     }
     if parsed_token_uri.unwrap().scheme() != "ipfs" {
-        return Some((ContractError::InvalidCodeUri {}));
+        return Some(ContractError::InvalidCodeUri {});
     }
     return None;
 }
@@ -118,21 +118,11 @@ fn finalize_token_uri(deps: DepsMut,
                       token_id: String,
                       token_uri: String,
 ) -> Result<Response, ContractError> {
-    //todo
     let finalizer = FINALIZER.load(deps.storage)?;
 
     if info.sender != finalizer {
         return Err(Unauthorized {});
     }
-
-    // let token_finalized = (TOKEN_FINALIZED
-    //     .key(token_id.clone())
-    //     .may_load(deps.storage)?)
-    //     .unwrap_or(false);
-    // 
-    // if token_finalized {
-    //     return Err(ContractError::Finalized {});
-    // }
 
     Sg721ImagoContract::default()
         .tokens
@@ -168,7 +158,7 @@ fn execute_set_code_uri(deps: DepsMut,
     }
 
     CODE_URI.save(deps.storage, &uri.clone())?;
-    
+
     return Ok(Response::new()
         .add_attribute("action", "set_code_uri"));
 }
@@ -403,13 +393,13 @@ mod tests {
         let creator = String::from("creator");
         let finalizer = String::from("finalizer_address");
         let collection = String::from("collection0");
-        const MINTER: &str = "minter";
 
+        let original_code_uri = "ipfs://abc123".to_string();
         let msg = InstantiateMsg {
             name: collection,
             symbol: String::from("BOBO"),
             minter: String::from("minter"),
-            code_uri: "ipfs://abc123".to_string(),
+            code_uri: original_code_uri.clone(),
             collection_info: CollectionInfo {
                 creator: String::from("creator"),
                 description: String::from("Stargaze Monkeys"),
@@ -428,52 +418,31 @@ mod tests {
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(3, res.messages.len());
 
-        // mint nft
-        let token_id = "1".to_string();
-        let token_uri = "https://imago.com".to_string();
-
-        let exec_mint_msg = ExecuteMsg::Mint(MintMsg::<Empty> {
-            token_id: token_id.clone(),
-            owner: String::from("medusa"),
-            token_uri: Some(token_uri.clone()),
-            extension: Empty {},
-        });
-
-        let allowed = mock_info(MINTER, &[]);
-        let _ = Sg721ImagoContract::default()
-            .execute(deps.as_mut(), mock_env(), allowed.clone(), exec_mint_msg.into())
-            .unwrap();
-
-        let query_msg: QueryMsg = QueryMsg::NftInfo {
-            token_id: (&token_id).to_string(),
-        };
+        let query_msg: QueryMsg = QueryMsg::CodeUri {};
 
         // confirm response is the same
-        let res: NftInfoResponse<Empty> =
+        let res: CodeUriResponse =
             from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
-        assert_eq!(res.token_uri, Some(token_uri));
+        assert_eq!(res.code_uri, original_code_uri.clone());
 
-        // update base token uri
-        let new_token_uri: String = "ipfs://abc123newuri".to_string();
-        let finalize_token_uri_msg = ExecuteMsg::FinalizeTokenUri {
-            token_uri: new_token_uri.clone(),
-            token_id,
+        let new_code_uri = "ipfs://xyz987".to_string();
+
+        let exec_seturi_msg = ExecuteMsg::SetCodeUri {
+            uri: new_code_uri.clone(),
         };
-        let finalizer_allowed = mock_info(&finalizer, &[]);
-        let _ = execute(
-            deps.as_mut(),
-            mock_env(),
-            finalizer_allowed.clone(),
-            finalize_token_uri_msg,
-        )
+
+        let allowed = mock_info(&creator.clone(), &[]);
+        let _ = execute(deps.as_mut(), mock_env(), allowed.clone(), exec_seturi_msg)
             .unwrap();
 
-        let res: NftInfoResponse<Empty> =
-            from_binary(&query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
+        let query_msg: QueryMsg = QueryMsg::CodeUri {};
 
-        assert_eq!(
-            res.token_uri,
-            Some(format!("{}", new_token_uri))
-        );
+        // confirm response is the same
+        let res: CodeUriResponse =
+            from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
+        assert_eq!(res.code_uri, new_code_uri.clone());
+
+
+        //
     }
 }

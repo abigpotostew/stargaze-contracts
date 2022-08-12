@@ -1,22 +1,19 @@
-use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
-use cosmwasm_std::{coin, coins, Addr, Decimal, Empty, Timestamp, Uint128};
+use cosmwasm_std::{Addr, coin, coins, Decimal, Timestamp, Uint128};
 use cosmwasm_std::{Api, Coin};
+use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
-use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
-use sg721_imago::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse, QueryMsg as Sg721ImagoQueryMsg, CodeUriResponse};
-use sg721_imago::state::CollectionInfo;
 use sg_multi_test::StargazeApp;
-use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
-use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
-use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
+use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
+
+use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
+use sg721_imago::state::CollectionInfo;
 
 use crate::contract::instantiate;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
+    QueryMsg, StartTimeResponse,
 };
-use crate::ContractError;
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
@@ -31,6 +28,7 @@ const ADMIN_MINT_PRICE: u128 = 15_000_000;
 fn custom_mock_app() -> StargazeApp {
     StargazeApp::default()
 }
+
 pub fn contract_whitelist() -> Box<dyn Contract<StargazeMsgWrapper>> {
     let contract = ContractWrapper::new(
         whitelist::contract::execute,
@@ -46,7 +44,7 @@ pub fn contract_minter() -> Box<dyn Contract<StargazeMsgWrapper>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_reply(crate::contract::reply);
+        .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 
@@ -196,8 +194,8 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
-            code_uri:"ipfs://test_code_url".to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -226,8 +224,8 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
-            code_uri:"test_code_url".to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -256,7 +254,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
+            finalizer: info.sender.to_string(),
             code_uri: "uri_missing_protocol".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
@@ -287,8 +285,8 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
-            code_uri:"ipfs://test_code_url".to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -317,8 +315,8 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
-            code_uri:"ipfs://test_code_url".to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -347,8 +345,8 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
-            code_uri:"ipfs://test_code_url".to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
                 description: String::from("Stargaze Monkeys"),
@@ -377,7 +375,7 @@ fn initialization() {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
-            finalizer:info.sender.to_string(),
+            finalizer: info.sender.to_string(),
             code_uri: "ipfs://test_code_url".to_string(),
             collection_info: CollectionInfo {
                 creator: info.sender.to_string(),
@@ -570,7 +568,7 @@ fn burn_remaining() {
     setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 2;
-    let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    let (minter_addr, _) = setup_minter_contract(&mut router, &creator, num_tokens);
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -656,5 +654,4 @@ fn burn_remaining() {
         )
         .unwrap();
     assert_eq!(res.count, 0);
-
 }

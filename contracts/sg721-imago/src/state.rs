@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Decimal};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -20,5 +20,4 @@ pub struct RoyaltyInfo {
 
 pub const CODE_URI: Item<String> = Item::new("code_uri");
 pub const COLLECTION_INFO: Item<CollectionInfo<RoyaltyInfo>> = Item::new("collection_info");
-// pub const TOKEN_FINALIZED: Map<String, bool> = Map::new("token_finalized");
 pub const FINALIZER: Item<Addr> = Item::new("finalizer");
