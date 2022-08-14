@@ -51,7 +51,7 @@ const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
 
-const BASETOKEN_URI: &str = "https://metadata.publicworks.art";
+const BASETOKEN_URI: &str = "https://testnetmetadata.publicworks.art";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
