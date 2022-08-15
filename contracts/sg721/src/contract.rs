@@ -12,8 +12,8 @@ use cw721_base::ContractError as BaseError;
 use sg1::checked_fair_burn;
 use sg_std::{Response, StargazeMsgWrapper};
 use url::Url;
-use crate::error::ContractError;
 
+use crate::error::ContractError;
 use crate::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse};
 use crate::state::{COLLECTION_INFO, CollectionInfo, RoyaltyInfo};
 
@@ -85,10 +85,10 @@ pub fn instantiate(
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
 
     Ok(res
-           .add_attribute("action", "instantiate")
-           .add_attribute("contract_name", CONTRACT_NAME)
-           .add_attribute("contract_version", CONTRACT_VERSION)
-           .add_attribute("image", image.to_string()))
+        .add_attribute("action", "instantiate")
+        .add_attribute("contract_name", CONTRACT_NAME)
+        .add_attribute("contract_version", CONTRACT_VERSION)
+        .add_attribute("image", image.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

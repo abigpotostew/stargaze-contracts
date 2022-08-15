@@ -406,6 +406,7 @@ fn _execute_mint(
     }
 
     let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
+    let mut res = Response::new();
 
     // Create network fee msgs
     let fee_percent = if is_admin {
@@ -415,7 +416,7 @@ fn _execute_mint(
     };
     let network_fee = mint_price.amount * fee_percent;
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr?)?);
+    checked_fair_burn(&info, network_fee.u128(), addr?, &mut res)?;
 
     let mintable_token_id = match token_id {
         Some(token_id) => {
@@ -471,7 +472,7 @@ fn _execute_mint(
     }
     MINTER_LAST_BLOCK.save(deps.storage, info.clone().sender, &env.block.height)?;
 
-    Ok(Response::default()
+    Ok(res
         .add_attribute("action", action)
         .add_attribute("sender", info.sender)
         .add_attribute("recipient", recipient_addr)

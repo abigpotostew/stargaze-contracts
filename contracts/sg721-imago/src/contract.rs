@@ -36,7 +36,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, addr?, &mut res)?;
+    checked_fair_burn(&info, CREATION_FEE, addr?, &mut res)?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
@@ -98,8 +98,7 @@ pub fn instantiate(
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)
-        .add_attribute("image", image.to_string())
-        .add_messages(fee_msgs))
+        .add_attribute("image", image.to_string()))
 }
 
 fn validate_code_uri(uri: String) -> Option<ContractError> {

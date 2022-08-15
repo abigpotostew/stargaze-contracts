@@ -1,22 +1,29 @@
-use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
-use cosmwasm_std::{coin, coins, Addr, Decimal, Empty, Timestamp, Uint128};
 use cosmwasm_std::{Api, Coin};
-use cw721::{Cw721QueryMsg, OwnerOfResponse};
+use cosmwasm_std::{Addr, coin, coins, Empty, Timestamp, Uint128};
+use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
+use cw721::{Cw721QueryMsg, OwnerOfResponse, TokensResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
+use sg_multi_test::StargazeApp;
+use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
+
+use sg2::msg::Sg2ExecuteMsg;
+use sg2::tests::mock_collection_params;
 use sg721::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse};
 use sg721::state::CollectionInfo;
-use sg_multi_test::StargazeApp;
-use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
-use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
+use sg_whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
+use sg_whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
+use vending_factory::msg::{VendingMinterCreateMsg, VendingMinterInitMsgExtension};
+use vending_factory::state::{ParamsExtension, VendingMinterParams};
 use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
+use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
 
 use crate::contract::instantiate;
-use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
-};
 use crate::ContractError;
+use crate::msg::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
+    MintPriceResponse, QueryMsg, StartTimeResponse,
+};
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
@@ -31,6 +38,7 @@ const ADMIN_MINT_PRICE: u128 = 15_000_000;
 fn custom_mock_app() -> StargazeApp {
     StargazeApp::default()
 }
+
 pub fn contract_whitelist() -> Box<dyn Contract<StargazeMsgWrapper>> {
     let contract = ContractWrapper::new(
         whitelist::contract::execute,
@@ -46,7 +54,7 @@ pub fn contract_minter() -> Box<dyn Contract<StargazeMsgWrapper>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_reply(crate::contract::reply);
+        .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 
@@ -529,6 +537,7 @@ fn happy_path() {
     );
     assert!(res.is_err());
 }
+
 #[test]
 fn mint_count_query() {
     let mut router = custom_mock_app();
@@ -1180,9 +1189,9 @@ fn mint_for_token_id_addr() {
     assert_eq!(
         ContractError::IncorrectPaymentAmount(
             coin(ADMIN_MINT_PRICE - 1, NATIVE_DENOM.to_string()),
-            coin(ADMIN_MINT_PRICE, NATIVE_DENOM.to_string())
+            coin(ADMIN_MINT_PRICE, NATIVE_DENOM.to_string()),
         )
-        .to_string(),
+            .to_string(),
         err.source().unwrap().to_string()
     );
 

@@ -1,8 +1,8 @@
 use crate::{state::CollectionInfo, ContractError};
 use cosmwasm_std::{Binary, Decimal, Empty};
+use cw721::Expiration;
 use cw721_base::msg::QueryMsg as Cw721QueryMsg;
 use cw721_base::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
-use cw_utils::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -105,7 +105,7 @@ impl From<ExecuteMsg> for Cw721ExecuteMsg<Empty> {
                 Cw721ExecuteMsg::Revoke { spender, token_id }
             }
             ExecuteMsg::ApproveAll { operator, expires } => {
-                Cw721ExecuteMsg::ApproveAll { operator, expires: Some(expires) }
+                Cw721ExecuteMsg::ApproveAll { operator, expires }
             }
             ExecuteMsg::RevokeAll { operator } => Cw721ExecuteMsg::RevokeAll { operator },
             ExecuteMsg::Mint(mint_msg) => Cw721ExecuteMsg::Mint(mint_msg),

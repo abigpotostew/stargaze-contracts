@@ -529,6 +529,7 @@ dependencies = [
  "serde",
  "sg-multi-test",
  "sg-std",
+ "sg1 0.14.0",
  "sg721_imago",
  "thiserror",
  "url",
@@ -620,6 +621,7 @@ dependencies = [
  "sg721_imago",
  "thiserror",
  "url",
+ "whitelist",
 ]
 
 [[package]]

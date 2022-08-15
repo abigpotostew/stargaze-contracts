@@ -47,7 +47,7 @@ cw2 = "0.14.0"
 cw-utils = "0.14.0"
 schemars = "0.8"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-#sg721 = { path = "../sg721", features = ["library"] }
+whitelist = { path = "../whitelist", features = ["library"] }
 sg721_imago = { path = "../sg721-imago", features = ["library"] }
 minter = { path = "../minter", features = ["library"] }
 thiserror = { version = "1.0" }
