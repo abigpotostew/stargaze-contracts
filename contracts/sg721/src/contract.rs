@@ -1,20 +1,21 @@
+use std::convert::TryInto;
+
+use cosmwasm_std::{
+    Addr, BankMsg, Binary, coin, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
+    Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, WasmMsg,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
 use cw2::set_contract_version;
-
-use sg1::checked_fair_burn;
-use sg_std::{Response, StargazeMsgWrapper};
-
-use crate::ContractError;
 use cw721::ContractInfoResponse;
 use cw721_base::ContractError as BaseError;
+use sg1::checked_fair_burn;
+use sg_std::{Response, StargazeMsgWrapper};
 use url::Url;
+use crate::error::ContractError;
 
-use crate::msg::{
-    CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
-};
-use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
+use crate::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse};
+use crate::state::{COLLECTION_INFO, CollectionInfo, RoyaltyInfo};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-721";
@@ -32,9 +33,11 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    let mut res = Response::new();
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, None)?;
+    checked_fair_burn(&info, CREATION_FEE, None, &mut res)?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
@@ -81,12 +84,11 @@ pub fn instantiate(
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
 
-    Ok(Response::default()
-        .add_attribute("action", "instantiate")
-        .add_attribute("contract_name", CONTRACT_NAME)
-        .add_attribute("contract_version", CONTRACT_VERSION)
-        .add_attribute("image", image.to_string())
-        .add_messages(fee_msgs))
+    Ok(res
+           .add_attribute("action", "instantiate")
+           .add_attribute("contract_name", CONTRACT_NAME)
+           .add_attribute("contract_version", CONTRACT_VERSION)
+           .add_attribute("image", image.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -129,12 +131,13 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use cosmwasm_std::{coins, Decimal, from_binary};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use sg_std::NATIVE_DENOM;
 
     use crate::state::CollectionInfo;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Decimal};
-    use sg_std::NATIVE_DENOM;
+
+    use super::*;
 
     #[test]
     fn proper_initialization_no_royalties() {

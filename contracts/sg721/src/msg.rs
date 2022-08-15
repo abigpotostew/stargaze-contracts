@@ -1,8 +1,9 @@
-use crate::{state::CollectionInfo, ContractError};
+use crate::{state::CollectionInfo};
 use cosmwasm_std::{Decimal, Empty};
 use cw721_base::msg::QueryMsg as Cw721QueryMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::error::ContractError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {

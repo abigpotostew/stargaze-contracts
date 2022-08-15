@@ -105,7 +105,7 @@ impl From<ExecuteMsg> for Cw721ExecuteMsg<Empty> {
                 Cw721ExecuteMsg::Revoke { spender, token_id }
             }
             ExecuteMsg::ApproveAll { operator, expires } => {
-                Cw721ExecuteMsg::ApproveAll { operator, expires }
+                Cw721ExecuteMsg::ApproveAll { operator, expires: Some(expires) }
             }
             ExecuteMsg::RevokeAll { operator } => Cw721ExecuteMsg::RevokeAll { operator },
             ExecuteMsg::Mint(mint_msg) => Cw721ExecuteMsg::Mint(mint_msg),

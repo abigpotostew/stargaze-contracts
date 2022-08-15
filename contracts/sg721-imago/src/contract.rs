@@ -22,7 +22,7 @@ const MAX_DESCRIPTION_LENGTH: u32 = 512;
 
 pub const DEV_ADDRESS: &str = "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
 
-type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
+pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeMsgWrapper>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -32,10 +32,11 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    let mut res = Response::new();
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, addr?)?;
+    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, addr?, &mut res)?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
@@ -93,7 +94,7 @@ pub fn instantiate(
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
     CODE_URI.save(deps.storage, &msg.code_uri)?;
 
-    Ok(Response::default()
+    Ok(res
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)

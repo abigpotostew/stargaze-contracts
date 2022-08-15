@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/*", "contracts/*"]
+members = ["contracts/*"]
 
 [profile.release.package.sg721]
 codegen-units = 1
