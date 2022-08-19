@@ -57,7 +57,7 @@ pub enum ContractError {
     #[error("Instantiate sg721 error")]
     InstantiateSg721Error {},
 
-    #[error("Invalid base token URI (must be an integer string)")]
+    #[error("Invalid base token URI (must be publicworks.art url)")]
     InvalidBaseTokenURI {},
 
     #[error("address not on whitelist: {addr}")]

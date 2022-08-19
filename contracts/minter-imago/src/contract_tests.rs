@@ -76,7 +76,7 @@ fn setup_minter_contract(
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -188,7 +188,7 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 0,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1234".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -240,7 +240,7 @@ fn initialization() {
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
 
-    // Invalid base token uri returns error
+    // Invalid base token uri returns error -- not https protocol
     let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
@@ -248,7 +248,67 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "a".to_string(),
+        sg721_code_id: 1,
+        sg721_instantiate_msg: Sg721InstantiateMsg {
+            name: String::from("TEST"),
+            symbol: String::from("TEST"),
+            minter: info.sender.to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "http://metadata.publicworks.art/2".to_string(),
+            collection_info: CollectionInfo {
+                creator: info.sender.to_string(),
+                description: String::from("Stargaze Monkeys"),
+                image: "https://example.com/image.png".to_string(),
+                external_link: Some("https://example.com/external.html".to_string()),
+                royalty_info: Some(RoyaltyInfoResponse {
+                    payment_address: info.sender.to_string(),
+                    share: Decimal::percent(10),
+                }),
+            },
+        },
+    };
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+
+    // Invalid base toke uri-- not public works url
+    let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
+    let msg = InstantiateMsg {
+        unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
+        num_tokens: 100,
+        start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
+        per_address_limit: 5,
+        whitelist: None,
+        base_token_uri: "https://metadata.publicworks.aart/1".to_string(),
+        sg721_code_id: 1,
+        sg721_instantiate_msg: Sg721InstantiateMsg {
+            name: String::from("TEST"),
+            symbol: String::from("TEST"),
+            minter: info.sender.to_string(),
+            finalizer: info.sender.to_string(),
+            code_uri: "test_code_url".to_string(),
+            collection_info: CollectionInfo {
+                creator: info.sender.to_string(),
+                description: String::from("Stargaze Monkeys"),
+                image: "https://example.com/image.png".to_string(),
+                external_link: Some("https://example.com/external.html".to_string()),
+                royalty_info: Some(RoyaltyInfoResponse {
+                    payment_address: info.sender.to_string(),
+                    share: Decimal::percent(10),
+                }),
+            },
+        },
+    };
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+
+    // Invalid code token uri returns error
+    let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
+    let msg = InstantiateMsg {
+        unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
+        num_tokens: 100,
+        start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
+        per_address_limit: 5,
+        whitelist: None,
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -279,7 +339,7 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -309,7 +369,7 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -339,7 +399,7 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
@@ -369,7 +429,7 @@ fn initialization() {
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "1234".to_string(),
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),

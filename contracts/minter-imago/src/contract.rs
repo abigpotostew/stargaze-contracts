@@ -40,6 +40,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const DEV_ADDRESS: &str = "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
 
+const PW_HOSTNAME_SUFFIX: &str = "publicworks.art";
+
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
 
 // governance parameters
@@ -50,8 +52,6 @@ const AIRDROP_MINT_PRICE: u128 = 15_000_000;
 const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
-
-const BASETOKEN_URI: &str = "https://metadata.publicworks.art";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -113,13 +113,24 @@ pub fn instantiate(
         .whitelist
         .and_then(|w| deps.api.addr_validate(w.as_str()).ok());
 
-    let project_id_res = msg.base_token_uri.parse::<i32>();
-    if project_id_res.is_err() {
-        print!("PARSING ERROR {} error {}", msg.base_token_uri, project_id_res.unwrap_err());
+    let parsed_token_uri = Url::parse(&msg.base_token_uri)?;
+    if parsed_token_uri.scheme() != "https" {
         return Err(ContractError::InvalidBaseTokenURI {});
     }
-    let project_id = project_id_res.unwrap();
-    let base_token_uri = format!("{}/{}", BASETOKEN_URI, project_id);
+    let host_error = match parsed_token_uri.domain() {
+        Some(d) => {
+            if d.ends_with(PW_HOSTNAME_SUFFIX) {
+                None
+            }else{
+                Some(Err(ContractError::InvalidBaseTokenURI {}))
+            }
+        },
+        _ => Some(Err(ContractError::InvalidBaseTokenURI {}))
+    };
+    if host_error.is_some() {
+        return host_error.unwrap();
+    }
+    let base_token_uri = msg.base_token_uri.clone();
 
     let parsed_code_uri = Url::parse(&msg.sg721_instantiate_msg.code_uri);
     if parsed_code_uri.is_err() {
