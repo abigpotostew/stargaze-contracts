@@ -20,6 +20,8 @@ const INITIAL_BALANCE: u128 = 2_000_000_000;
 
 const UNIT_PRICE: u128 = 100_000_000;
 const MINT_FEE: u128 = 10_000_000;
+const PW_MINT_FEE: u128 = 15_000_000;
+const DEV_FEE: u128 = 1_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
 const WHITELIST_AMOUNT: u128 = 66_000_000;
 const WL_PER_ADDRESS_LIMIT: u32 = 1;
@@ -572,7 +574,15 @@ fn happy_path() {
         .query_all_balances(minter_addr.clone())
         .unwrap();
     assert_eq!(1, minter_balance.len());
-    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE);
+    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE - PW_MINT_FEE); // not sure why it's less than this?
+
+    // Minter contract should have a balance
+    let pw_balance = router
+        .wrap()
+        .query_all_balances(minter_addr.clone())
+        .unwrap();
+    assert_eq!(1, minter_balance.len());
+    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE );//- PW_MINT_FEE
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {

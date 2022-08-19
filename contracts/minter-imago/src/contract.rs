@@ -1,15 +1,13 @@
-use cosmwasm_std::{
-    Addr, BankMsg, Binary, coin, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, WasmMsg,
-};
+use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, WasmMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 use cw721_base::{MintMsg, msg::ExecuteMsg as Cw721ExecuteMsg};
-use cw_utils::{may_pay, maybe_addr, parse_reply_instantiate_data};
-use sg1::checked_fair_burn;
+use cw_utils::{may_pay, maybe_addr, must_pay, parse_reply_instantiate_data};
+use sg1::{checked_fair_burn, FeeError};
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
+use cosmwasm_std::{BankMsg as CWBankMsg};
 
 use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
 use whitelist::msg::{
@@ -24,6 +22,10 @@ use crate::msg::{
 use crate::state::{
     Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, MINTER_LAST_BLOCK, SG721_ADDRESS,
 };
+
+use cw_utils::{PaymentError};
+use sg_std::{create_fund_community_pool_msg};
+
 
 /**
 Stew todo
@@ -52,6 +54,7 @@ const AIRDROP_MINT_PRICE: u128 = 15_000_000;
 const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
+const PW_MINT_FEE_PERCENT: u64 = 15;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -425,8 +428,10 @@ fn _execute_mint(
         Decimal::percent(MINT_FEE_PERCENT as u64)
     };
     let network_fee = mint_price.amount * fee_percent;
-    let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr?)?);
+    let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
+    let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()))?;
+    msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap() )?);
+    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr.clone())?);
 
     let mintable_token_id = match token_id {
         Some(token_id) => {
@@ -488,10 +493,32 @@ fn _execute_mint(
         .add_attribute("recipient", recipient_addr)
         .add_attribute("token_id", mintable_token_id.to_string())
         .add_attribute("network_fee", network_fee)
+        .add_attribute("pw_fee", pw_fee)
         .add_attribute("mint_price", mint_price.amount)
         .add_messages(msgs))
 }
 
+fn pw_fee_msg(
+    info: &MessageInfo,
+    fee: u128,
+    developer: Addr,
+) -> Result<Vec<CosmosMsg<StargazeMsgWrapper>>, FeeError> {
+    let payment = must_pay(info, NATIVE_DENOM)?;
+    if payment.u128() < fee {
+        return Err(FeeError::InsufficientFee(fee, payment.u128()));
+    };
+    let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
+    let msg = BankMsg::Send {
+        to_address: developer.to_string(),
+        amount: coins(fee, NATIVE_DENOM),
+    };
+    msgs.push(CosmosMsg::Bank(msg));
+    (
+        Decimal::percent(PW_MINT_FEE_PERCENT),
+        fee,
+    );
+    Ok(msgs)
+}
 
 pub fn execute_burn_remaining(
     deps: DepsMut,
