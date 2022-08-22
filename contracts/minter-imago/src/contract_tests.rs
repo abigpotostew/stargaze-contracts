@@ -21,6 +21,7 @@ const INITIAL_BALANCE: u128 = 2_000_000_000;
 const UNIT_PRICE: u128 = 100_000_000;
 const MINT_FEE: u128 = 10_000_000;
 const PW_MINT_FEE: u128 = 15_000_000;
+const PW_CREATE_FEE: u128 = 100_000_000;
 const DEV_FEE: u128 = 1_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
 const WHITELIST_AMOUNT: u128 = 66_000_000;
@@ -460,7 +461,24 @@ fn happy_path() {
     setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 2;
+
+    // Get dev address balance Before any actions
+    let pw_balance_before = router
+        .wrap()
+        .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
+        .unwrap();
+    assert_eq!(0, pw_balance_before.len());
+
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+
+
+    // Get dev address balance Before any actions
+    let pw_balance_after_mint = router
+        .wrap()
+        .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
+        .unwrap();
+    assert_eq!(1, pw_balance_after_mint.len());
+    assert_eq!(pw_balance_after_mint[0].amount.u128(), PW_CREATE_FEE);
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -574,15 +592,15 @@ fn happy_path() {
         .query_all_balances(minter_addr.clone())
         .unwrap();
     assert_eq!(1, minter_balance.len());
-    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE - PW_MINT_FEE); // not sure why it's less than this?
+    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE - PW_MINT_FEE-2250000); // some subtracted from prior mint fair burn fees
 
-    // Minter contract should have a balance
-    let pw_balance = router
+    // Dev address should have a balance
+    let pw_balance2 = router
         .wrap()
-        .query_all_balances(minter_addr.clone())
+        .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
-    assert_eq!(1, minter_balance.len());
-    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE );//- PW_MINT_FEE
+    assert_eq!(1, pw_balance2.len());
+    assert_eq!(pw_balance2[0].amount.u128(), 119_750_000); //fair burn plus PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
