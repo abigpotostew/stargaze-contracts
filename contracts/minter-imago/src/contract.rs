@@ -487,6 +487,18 @@ fn _execute_mint(
     }
     MINTER_LAST_BLOCK.save(deps.storage, info.clone().sender, &env.block.height)?;
 
+    let seller_amount = if !is_admin {
+        let amount = mint_price.amount - network_fee;
+        let msg = BankMsg::Send {
+            to_address: config.extension.admin.to_string(),
+            amount: vec![coin(amount.u128(), config.extension.unit_price.denom)],
+        };
+        res = res.add_message(msg);
+        amount
+    } else {
+        Uint128::zero()
+    };
+
     Ok(Response::default()
         .add_attribute("action", action)
         .add_attribute("sender", info.sender)
@@ -495,6 +507,7 @@ fn _execute_mint(
         .add_attribute("network_fee", network_fee)
         .add_attribute("pw_fee", pw_fee)
         .add_attribute("mint_price", mint_price.amount)
+        .add_attribute("seller_amount", seller_amount)
         .add_messages(msgs))
 }
 
