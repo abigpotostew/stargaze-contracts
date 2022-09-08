@@ -515,7 +515,7 @@ fn happy_path() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 75_000_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
@@ -571,6 +571,10 @@ fn happy_path() {
             denom: NATIVE_DENOM.to_string(),
         }),
     );
+    if res.is_err() {
+        println!("{}", res.as_ref().err().unwrap().to_string())
+    }
+    // not sure why this is panicking.
     assert!(res.is_ok());
 
     // Mint count is not increased if admin mints for the user

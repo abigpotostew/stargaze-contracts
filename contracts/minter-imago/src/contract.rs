@@ -7,7 +7,6 @@ use cw_utils::{may_pay, maybe_addr, must_pay, parse_reply_instantiate_data};
 use sg1::{checked_fair_burn, FeeError};
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
-use cosmwasm_std::{BankMsg as CWBankMsg};
 
 use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
 use whitelist::msg::{
@@ -22,16 +21,6 @@ use crate::msg::{
 use crate::state::{
     Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, MINTER_LAST_BLOCK, SG721_ADDRESS,
 };
-
-use cw_utils::{PaymentError};
-use sg_std::{create_fund_community_pool_msg};
-
-
-/**
-Stew todo
-- Inherit or at least import functions and types from sg721 minter
-- Use BeforeMint callback on minter so my logic can be injected
- */
 
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 pub type SubMsg = cosmwasm_std::SubMsg<StargazeMsgWrapper>;
@@ -124,10 +113,10 @@ pub fn instantiate(
         Some(d) => {
             if d.ends_with(PW_HOSTNAME_SUFFIX) {
                 None
-            }else{
+            } else {
                 Some(Err(ContractError::InvalidBaseTokenURI {}))
             }
-        },
+        }
         _ => Some(Err(ContractError::InvalidBaseTokenURI {}))
     };
     if host_error.is_some() {
@@ -430,7 +419,7 @@ fn _execute_mint(
     let network_fee = mint_price.amount * fee_percent;
     let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()))?;
-    msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap() )?);
+    msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
     msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr.clone())?);
 
     let mintable_token_id = match token_id {
@@ -488,12 +477,12 @@ fn _execute_mint(
     MINTER_LAST_BLOCK.save(deps.storage, info.clone().sender, &env.block.height)?;
 
     let seller_amount = if !is_admin {
-        let amount = mint_price.amount - network_fee;
+        let amount = mint_price.amount - network_fee - pw_fee;
         let msg = BankMsg::Send {
-            to_address: config.extension.admin.to_string(),
-            amount: vec![coin(amount.u128(), config.extension.unit_price.denom)],
+            to_address: config.admin.to_string(),
+            amount: vec![coin(amount.u128(), config.unit_price.denom)],
         };
-        res = res.add_message(msg);
+        msgs.push(CosmosMsg::Bank(msg));
         amount
     } else {
         Uint128::zero()
