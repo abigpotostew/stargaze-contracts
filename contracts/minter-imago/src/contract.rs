@@ -87,11 +87,6 @@ pub fn instantiate(
         });
     }
 
-    let genesis_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    // If start time is before genesis time return error
-    if msg.start_time < genesis_time {
-        return Err(ContractError::BeforeGenesisTime {});
-    }
     // If current time is beyond the provided start time return error
     if env.block.time > msg.start_time {
         return Err(ContractError::InvalidStartTime(
@@ -194,47 +189,11 @@ pub fn execute(
             execute_update_per_address_limit(deps, env, info, per_address_limit)
         }
         ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
-        ExecuteMsg::MintFor {
-            token_id,
-            recipient,
-        } => execute_mint_for(deps, env, info, token_id, recipient),
         ExecuteMsg::SetWhitelist { whitelist } => {
             execute_set_whitelist(deps, env, info, &whitelist)
         }
-        ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
         ExecuteMsg::BurnRemaining {} => execute_burn_remaining(deps, env, info),
     }
-}
-
-pub fn execute_withdraw(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.admin != info.sender {
-        return Err(ContractError::Unauthorized(
-            "Sender is not an admin".to_owned(),
-        ));
-    };
-
-    // query balance from the contract
-    let balance = deps
-        .querier
-        .query_balance(env.contract.address, NATIVE_DENOM)?;
-    if balance.amount.is_zero() {
-        return Err(ContractError::ZeroBalance {});
-    }
-
-    // send contract balance to creator
-    let send_msg = CosmosMsg::Bank(BankMsg::Send {
-        to_address: info.sender.to_string(),
-        amount: vec![balance],
-    });
-
-    Ok(Response::default()
-        .add_attribute("action", "withdraw")
-        .add_message(send_msg))
 }
 
 pub fn execute_set_whitelist(
@@ -292,7 +251,7 @@ pub fn execute_mint_sender(
         return Err(ContractError::MaxPerAddressLimitExceeded {});
     }
 
-    _execute_mint(deps, env, info, action, false, None, None)
+    _execute_mint(deps, env, info, action, false, None)
 }
 
 // Check if a whitelist exists and not ended
@@ -353,28 +312,7 @@ pub fn execute_mint_to(
         ));
     }
 
-    _execute_mint(deps, env, info, action, true, Some(recipient), None)
-}
-
-pub fn execute_mint_for(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    token_id: u32,
-    recipient: String,
-) -> Result<Response, ContractError> {
-    let recipient = deps.api.addr_validate(&recipient)?;
-    let config = CONFIG.load(deps.storage)?;
-    let action = "mint_for";
-
-    // Check only admin
-    if info.sender != config.admin {
-        return Err(ContractError::Unauthorized(
-            "Sender is not an admin".to_owned(),
-        ));
-    }
-
-    _execute_mint(deps, env, info, action, true, Some(recipient), Some(token_id))
+    _execute_mint(deps, env, info, action, true, Some(recipient))
 }
 
 // Generalize checks and mint message creation
@@ -388,7 +326,6 @@ fn _execute_mint(
     action: &str,
     is_admin: bool,
     recipient: Option<Addr>,
-    token_id: Option<u32>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let sg721_address = SG721_ADDRESS.load(deps.storage)?;
@@ -422,29 +359,15 @@ fn _execute_mint(
     msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
     msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr.clone())?);
 
-    let mintable_token_id = match token_id {
-        Some(token_id) => {
-            if token_id == 0 || token_id > config.num_tokens {
-                return Err(ContractError::InvalidTokenId {});
-            }
-            // If token_id not on mintable map, throw err
-            if !MINTABLE_TOKEN_IDS.has(deps.storage, token_id) {
-                return Err(ContractError::TokenIdAlreadySold { token_id });
-            }
-            token_id
-        }
-        None => {
-            let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
-                .keys(deps.storage, None, None, Order::Ascending)
-                .take(1)
-                .collect();
-            let mintable_tokens = mintable_tokens_result?;
-            if mintable_tokens.is_empty() {
-                return Err(ContractError::SoldOut {});
-            }
-            mintable_tokens[0]
-        }
-    };
+    let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
+        .keys(deps.storage, None, None, Order::Ascending)
+        .take(1)
+        .collect();
+    let mintable_tokens = mintable_tokens_result?;
+    if mintable_tokens.is_empty() {
+        return Err(ContractError::SoldOut {});
+    }
+    let mintable_token_id = mintable_tokens[0];
 
     // Create mint msgs
     let mint_msg = Cw721ExecuteMsg::Mint(MintMsg::<Empty> {
