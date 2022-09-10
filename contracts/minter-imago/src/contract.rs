@@ -354,9 +354,17 @@ fn _execute_mint(
         Decimal::percent(MINT_FEE_PERCENT as u64)
     };
     let network_fee = mint_price.amount * fee_percent;
-    let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
+
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()))?;
-    msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
+    //only take pw fee if it's not an airdrop
+    let pw_fee = if fee_percent ==  Decimal::percent(MINT_FEE_PERCENT as u64) {
+        let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
+        msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
+        pw_fee
+    }else{
+        Uint128::from(0u128)
+    };
+
     msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr.clone())?);
 
     let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS

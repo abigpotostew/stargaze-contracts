@@ -19,26 +19,12 @@ const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
 
 const UNIT_PRICE: u128 = 100_000_000;
-const MINT_FEE: u128 = 10_000_000;
-const PW_MINT_FEE: u128 = 15_000_000;
 const PW_CREATE_FEE: u128 = 100_000_000;
-const DEV_FEE: u128 = 1_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
-const WHITELIST_AMOUNT: u128 = 66_000_000;
-const WL_PER_ADDRESS_LIMIT: u32 = 1;
 const ADMIN_MINT_PRICE: u128 = 15_000_000;
 
 fn custom_mock_app() -> StargazeApp {
     StargazeApp::default()
-}
-
-pub fn contract_whitelist() -> Box<dyn Contract<StargazeMsgWrapper>> {
-    let contract = ContractWrapper::new(
-        whitelist::contract::execute,
-        whitelist::contract::instantiate,
-        whitelist::contract::query,
-    );
-    Box::new(contract)
 }
 
 pub fn contract_minter() -> Box<dyn Contract<StargazeMsgWrapper>> {
@@ -590,13 +576,20 @@ fn happy_path() {
     assert_eq!(res.count, 1);
     assert_eq!(res.address, buyer.to_string());
 
-    // Minter contract should have a balance
+    //creator should have balance
+    let pw_balance_creator = router
+        .wrap()
+        .query_all_balances(creator.to_string())
+        .unwrap();
+    assert_eq!(1, pw_balance_creator.len());
+    assert_eq!(pw_balance_creator[0].amount.u128(), 2_060_000_000); //fair burn plus PW fees
+
+    // Minter contract should not have a balance
     let minter_balance = router
         .wrap()
         .query_all_balances(minter_addr.clone())
         .unwrap();
-    assert_eq!(1, minter_balance.len());
-    assert_eq!(minter_balance[0].amount.u128(), UNIT_PRICE - MINT_FEE - PW_MINT_FEE-2250000); // some subtracted from prior mint fair burn fees
+    assert_eq!(0, minter_balance.len());
 
     // Dev address should have a balance
     let pw_balance2 = router
@@ -604,7 +597,7 @@ fn happy_path() {
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
     assert_eq!(1, pw_balance2.len());
-    assert_eq!(pw_balance2[0].amount.u128(), 119_750_000); //fair burn plus PW fees
+    assert_eq!(pw_balance2[0].amount.u128(), 117_500_000); //fair burn plus PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
