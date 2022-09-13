@@ -68,7 +68,7 @@ pub fn instantiate(
     }
 
     let maybe_err = validate_code_uri(msg.code_uri.clone());
-    if maybe_err.is_some() {
+    if let Some(..) = maybe_err {
         return Err(maybe_err.unwrap());
     }
 
@@ -109,7 +109,7 @@ fn validate_code_uri(uri: String) -> Option<ContractError> {
     if parsed_token_uri.unwrap().scheme() != "ipfs" {
         return Some(ContractError::InvalidCodeUri {});
     }
-    return None;
+    None
 }
 
 fn finalize_token_uri(deps: DepsMut,
@@ -137,8 +137,8 @@ fn finalize_token_uri(deps: DepsMut,
             }),
         })?;
 
-    return Ok(Response::new()
-        .add_attribute("action", "finalize"));
+    Ok(Response::new()
+        .add_attribute("action", "finalize"))
 }
 
 fn execute_set_code_uri(deps: DepsMut,
@@ -153,14 +153,14 @@ fn execute_set_code_uri(deps: DepsMut,
     }
 
     let maybe_err = validate_code_uri(uri.clone());
-    if maybe_err.is_some() {
+    if let Some(..) = maybe_err {
         return Err(maybe_err.unwrap());
     }
 
-    CODE_URI.save(deps.storage, &uri.clone())?;
+    CODE_URI.save(deps.storage, &uri)?;
 
-    return Ok(Response::new()
-        .add_attribute("action", "set_code_uri"));
+    Ok(Response::new()
+        .add_attribute("action", "set_code_uri"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

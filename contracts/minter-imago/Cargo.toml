@@ -1,7 +1,7 @@
 [package]
 name = "minter_imago"
-version = "0.0.1"
-authors = ["Stew <>"]
+version = "0.1.0"
+authors = ["Stewart Bracken <me@stewart.codes>"]
 edition = "2018"
 
 exclude = [

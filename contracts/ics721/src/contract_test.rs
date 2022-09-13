@@ -362,7 +362,7 @@ mod contact_testing {
                 .iter()
                 .map(|s| s.as_ref())
                 .collect::<Vec<&str>>(),
-            &sender_address.to_string(),
+            sender_address.as_ref(),
             &transfer_msg.clone().remote_address,
         );
         let result_msg = &result.unwrap();

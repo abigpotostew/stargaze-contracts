@@ -1,7 +1,7 @@
 [package]
 name = "sg721_imago"
-version = "0.0.1"
-authors = ["Shane Vitarana <s@noreply.publicawesome.com>"]
+version = "0.1.0"
+authors = ["Shane Vitarana <s@noreply.publicawesome.com>", "Stewart Bracken <me@stewart.codes>"]
 edition = "2018"
 description = "Stargaze NFT collection contract for imago"
 license = "Apache-2.0"
