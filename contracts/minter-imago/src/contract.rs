@@ -114,7 +114,7 @@ pub fn instantiate(
         }
         _ => Some(Err(ContractError::InvalidBaseTokenURI {}))
     };
-    if host_error.is_some() {
+    if let Some(..) = host_error {
         return host_error.unwrap();
     }
     let base_token_uri = msg.base_token_uri.clone();
@@ -365,7 +365,7 @@ fn _execute_mint(
         Uint128::from(0u128)
     };
 
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr.clone())?);
+    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr)?);
 
     let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
         .keys(deps.storage, None, None, Order::Ascending)
@@ -446,10 +446,7 @@ fn pw_fee_msg(
         amount: coins(fee, NATIVE_DENOM),
     };
     msgs.push(CosmosMsg::Bank(msg));
-    (
-        Decimal::percent(PW_MINT_FEE_PERCENT),
-        fee,
-    );
+
     Ok(msgs)
 }
 

@@ -55,7 +55,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::TransferOwnership { to } => execute_transfer_ownership(deps, info, to),
         ExecuteMsg::ChangeSigner { to, enabled } => execute_change_signer(deps, info, to, enabled),
-        ExecuteMsg::Finalize { contract, token_uri, token_id } => execute_finalize(deps, info, contract.to_string(), token_id, token_uri),
+        ExecuteMsg::Finalize { contract, token_uri, token_id } => execute_finalize(deps, info, contract, token_id, token_uri),
     }
 }
 
@@ -155,8 +155,8 @@ fn get_signers(
 ) -> Vec<String> {
     let signers = SIGNERS.range(deps.storage, Option::None, Option::None, Order::Ascending);
 
-    return signers
+    signers
         .filter(|s| (s.as_ref().unwrap().1))
         .map(|s| s.unwrap().0.to_string())
-        .collect();
+        .collect()
 }
