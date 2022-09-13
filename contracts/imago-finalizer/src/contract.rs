@@ -1,15 +1,15 @@
-use cosmwasm_std::{Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, StdResult, to_binary, WasmMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, StdResult, WasmMsg,
+};
 use cw2::set_contract_version;
 use sg_std::StargazeMsgWrapper;
 
 use sg721_imago::msg::ExecuteMsg as Imago721ExecuteMsg;
 
 use crate::error::ContractError;
-use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
-};
+use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{OWNER, SIGNERS};
 
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
@@ -34,7 +34,6 @@ pub fn instantiate(
     let signer = deps.api.addr_validate(&msg.signer)?;
     SIGNERS.save(deps.storage, signer, &true)?;
 
-
     Ok(Response::new()
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
@@ -55,14 +54,20 @@ pub fn execute(
     match msg {
         ExecuteMsg::TransferOwnership { to } => execute_transfer_ownership(deps, info, to),
         ExecuteMsg::ChangeSigner { to, enabled } => execute_change_signer(deps, info, to, enabled),
-        ExecuteMsg::Finalize { contract, token_uri, token_id } => execute_finalize(deps, info, contract.to_string(), token_id, token_uri),
+        ExecuteMsg::Finalize {
+            contract,
+            token_uri,
+            token_id,
+        } => execute_finalize(deps, info, contract, token_id, token_uri),
     }
 }
 
 pub fn execute_finalize(
     deps: DepsMut,
     info: MessageInfo,
-    contract: String, token_id: String, token_uri: String,
+    contract: String,
+    token_id: String,
+    token_uri: String,
 ) -> Result<Response, ContractError> {
     let valid_signer = SIGNERS.load(deps.storage, info.sender)?;
     if !valid_signer {
@@ -88,7 +93,6 @@ pub fn execute_finalize(
         .add_message(msg))
 }
 
-
 pub fn execute_transfer_ownership(
     deps: DepsMut,
     info: MessageInfo,
@@ -106,8 +110,7 @@ pub fn execute_transfer_ownership(
 
     Ok(Response::default()
         .add_attribute("action", "finalize_transfer_ownership")
-        .add_attribute("finalize_transfer_ownership", &to)
-    )
+        .add_attribute("finalize_transfer_ownership", &to))
 }
 
 pub fn execute_change_signer(
@@ -129,8 +132,7 @@ pub fn execute_change_signer(
     Ok(Response::default()
         .add_attribute("action", "finalize_change_signer")
         .add_attribute("finalize_change_signer_to", &to)
-        .add_attribute("finalize_change_signer_enabled", &enabled.to_string())
-    )
+        .add_attribute("finalize_change_signer_enabled", &enabled.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -150,13 +152,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
-fn get_signers(
-    deps: Deps,
-) -> Vec<String> {
+fn get_signers(deps: Deps) -> Vec<String> {
     let signers = SIGNERS.range(deps.storage, Option::None, Option::None, Order::Ascending);
 
-    return signers
+    signers
         .filter(|s| (s.as_ref().unwrap().1))
         .map(|s| s.unwrap().0.to_string())
-        .collect();
+        .collect()
 }

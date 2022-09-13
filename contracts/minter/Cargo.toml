@@ -49,3 +49,4 @@ sg1 = "0.14.0"
 cosmwasm-schema = { version = "1.0.0-beta8" }
 cw-multi-test = "0.14.0"
 sg-multi-test = "0.14.0"
+sg-whitelist = "0.12.4"

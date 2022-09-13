@@ -1,11 +1,6 @@
-use std::convert::TryInto;
-
-use cosmwasm_std::{
-    Addr, BankMsg, Binary, coin, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, WasmMsg,
-};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
 use cw2::set_contract_version;
 use cw721::ContractInfoResponse;
 use cw721_base::ContractError as BaseError;
@@ -14,8 +9,10 @@ use sg_std::{Response, StargazeMsgWrapper};
 use url::Url;
 
 use crate::error::ContractError;
-use crate::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse};
-use crate::state::{COLLECTION_INFO, CollectionInfo, RoyaltyInfo};
+use crate::msg::{
+    CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
+};
+use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-721";
@@ -131,8 +128,8 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coins, Decimal, from_binary};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coins, from_binary, Decimal};
     use sg_std::NATIVE_DENOM;
 
     use crate::state::CollectionInfo;

@@ -1,29 +1,27 @@
-use cosmwasm_std::{Api, Coin};
-use cosmwasm_std::{Addr, coin, coins, Empty, Timestamp, Uint128};
 use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
+use cosmwasm_std::{coin, coins, Addr, Empty, Timestamp, Uint128};
+use cosmwasm_std::{Api, Coin};
 use cw721::{Cw721QueryMsg, OwnerOfResponse, TokensResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use sg_multi_test::StargazeApp;
-use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
+use sg_std::{StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
 
-use sg2::msg::Sg2ExecuteMsg;
-use sg2::tests::mock_collection_params;
 use sg721::msg::{InstantiateMsg as Sg721InstantiateMsg, RoyaltyInfoResponse};
 use sg721::state::CollectionInfo;
-use sg_whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 use sg_whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
+use sg_whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 use vending_factory::msg::{VendingMinterCreateMsg, VendingMinterInitMsgExtension};
 use vending_factory::state::{ParamsExtension, VendingMinterParams};
-use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
+use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 
 use crate::contract::instantiate;
-use crate::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
-    MintPriceResponse, QueryMsg, StartTimeResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
+    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
 };
+use crate::ContractError;
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
@@ -54,7 +52,7 @@ pub fn contract_minter() -> Box<dyn Contract<StargazeMsgWrapper>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-        .with_reply(crate::contract::reply);
+    .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 
@@ -74,7 +72,7 @@ fn setup_whitelist_contract(router: &mut StargazeApp, creator: &Addr) -> Addr {
         members: vec![],
         start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME + 100),
         end_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME + 10000000),
-        unit_price: coin(WHITELIST_AMOUNT, NATIVE_DENOM),
+        mint_price: coin(WHITELIST_AMOUNT, NATIVE_DENOM),
         per_address_limit: WL_PER_ADDRESS_LIMIT,
         member_limit: 1000,
     };
@@ -1191,7 +1189,7 @@ fn mint_for_token_id_addr() {
             coin(ADMIN_MINT_PRICE - 1, NATIVE_DENOM.to_string()),
             coin(ADMIN_MINT_PRICE, NATIVE_DENOM.to_string()),
         )
-            .to_string(),
+        .to_string(),
         err.source().unwrap().to_string()
     );
 
