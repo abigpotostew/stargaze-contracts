@@ -52,7 +52,7 @@ minter_imago = { path = "../minter-imago", features = ["library"] }
 whitelist = { path = "../whitelist", features = ["library"] }
 thiserror = { version = "1.0" }
 url = "2.2.0"
-sg-std = "0.10.0"
+sg-std = "0.12.0"
 cw721-base = { version = "0.13.4", features = ["library"] }
 
 
