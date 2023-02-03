@@ -3,8 +3,9 @@ use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal,
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 use cw721_base::{MintMsg, msg::ExecuteMsg as Cw721ExecuteMsg};
-use cw_utils::{may_pay, maybe_addr, must_pay, parse_reply_instantiate_data};
+use cw_utils::{may_pay, nonpayable, maybe_addr, must_pay, parse_reply_instantiate_data};
 use sg1::{checked_fair_burn, FeeError};
+use semver::Version;
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
 
@@ -193,6 +194,7 @@ pub fn execute(
             execute_set_whitelist(deps, env, info, &whitelist)
         }
         ExecuteMsg::BurnRemaining {} => execute_burn_remaining(deps, env, info),
+        ExecuteMsg::UpdateUnitPrice {price} => execute_update_unit_price(deps, info, price),
     }
 }
 
@@ -548,6 +550,33 @@ pub fn execute_update_per_address_limit(
         .add_attribute("limit", per_address_limit.to_string()))
 }
 
+pub fn execute_update_unit_price(
+    deps: DepsMut,
+    info: MessageInfo,
+    price: u128,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    }
+    // Check that the price is greater than the minimum
+    if MIN_MINT_PRICE > price {
+        return Err(ContractError::InsufficientMintPrice {
+            expected: MIN_MINT_PRICE,
+            got: price,
+        });
+    }
+    config.unit_price = coin(price, config.unit_price.denom);
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "update_unit_price")
+        .add_attribute("sender", info.sender)
+        .add_attribute("unit_price", price.to_string()))
+}
+
 // if admin_no_fee => no fee,
 // else if in whitelist => whitelist price
 // else => config unit price
@@ -674,4 +703,31 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         }
         Err(_) => Err(ContractError::InstantiateSg721Error {}),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    let current_version = cw2::get_contract_version(deps.storage)?;
+    if current_version.contract != CONTRACT_NAME {
+        return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
+    }
+    let version: Version = current_version
+        .version
+        .parse()
+        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+    let new_version: Version = CONTRACT_VERSION
+        .parse()
+        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+
+    if version > new_version {
+        return Err(StdError::generic_err("Cannot upgrade to a previous contract version").into());
+    }
+    // if same version return
+    if version == new_version {
+        return Ok(Response::new());
+    }
+
+    // set new contract version
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::new())
 }

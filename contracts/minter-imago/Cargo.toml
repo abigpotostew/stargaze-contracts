@@ -1,6 +1,6 @@
 [package]
 name = "minter_imago"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Stewart Bracken <me@stewart.codes>"]
 edition = "2018"
 
@@ -57,6 +57,8 @@ sg1 = "0.12.1"
 whitelist = { path = "../whitelist", features = ["library"] }
 cw721 = "0.13.4"
 cw721-base = { version = "0.13.4", features = ["library"] }
+semver = "1"
+
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0" }

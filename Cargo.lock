@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "minter_imago"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -687,6 +687,7 @@ dependencies = [
  "cw721-base",
  "minter",
  "schemars",
+ "semver",
  "serde",
  "sg-multi-test 0.12.0",
  "sg-std 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
