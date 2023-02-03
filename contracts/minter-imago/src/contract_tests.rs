@@ -739,4 +739,11 @@ fn burn_remaining() {
         )
         .unwrap();
     assert_eq!(res.count, 0);
+
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(config.num_tokens, 1);
 }

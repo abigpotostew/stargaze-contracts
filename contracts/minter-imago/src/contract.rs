@@ -455,7 +455,10 @@ pub fn execute_burn_remaining(
     _: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let mintable_count = MINTABLE_NUM_TOKENS.load(deps.storage)?;
+    let num_tokens = config.num_tokens - mintable_count;
 
     // Check only admin
     if info.sender != config.admin {
@@ -473,6 +476,9 @@ pub fn execute_burn_remaining(
     for (_, token_id) in token_ids.iter().enumerate() {
         MINTABLE_TOKEN_IDS.remove(deps.storage, *token_id);
     }
+
+    config.num_tokens = num_tokens;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default()
         .add_attribute("action", "burn_remaining")
