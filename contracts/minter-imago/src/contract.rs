@@ -137,6 +137,8 @@ pub fn instantiate(
         per_address_limit: msg.per_address_limit,
         whitelist: whitelist_addr,
         start_time: msg.start_time,
+        end_time: msg.end_time,
+        resting_unit_price: msg.resting_unit_price,
     };
     CONFIG.save(deps.storage, &config)?;
     MINTABLE_NUM_TOKENS.save(deps.storage, &msg.num_tokens)?;
@@ -256,6 +258,7 @@ pub fn execute_mint_sender(
     _execute_mint(deps, env, info, action, false, None)
 }
 
+
 // Check if a whitelist exists and not ended
 // Sender has to be whitelisted to mint
 fn is_public_mint(deps: Deps, info: &MessageInfo) -> Result<bool, ContractError> {
@@ -337,7 +340,7 @@ fn _execute_mint(
         None => info.sender.clone(),
     };
 
-    let mint_price: Coin = mint_price(deps.as_ref(), is_admin)?;
+    let mint_price: Coin = mint_price(deps.as_ref(),env.clone(), is_admin)?;
     // Exact payment only accepted
     let payment = may_pay(&info, &config.unit_price.denom)?;
     if payment != mint_price.amount {
@@ -580,7 +583,7 @@ pub fn execute_update_unit_price(
 // if admin_no_fee => no fee,
 // else if in whitelist => whitelist price
 // else => config unit price
-pub fn mint_price(deps: Deps, is_admin: bool) -> Result<Coin, StdError> {
+pub fn mint_price(deps: Deps, env:Env, is_admin: bool) -> Result<Coin, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
     if is_admin {
@@ -588,7 +591,22 @@ pub fn mint_price(deps: Deps, is_admin: bool) -> Result<Coin, StdError> {
     }
 
     if config.whitelist.is_none() {
+        if config.end_time.is_some() && config.resting_unit_price.is_some() {
+            let end_time = config.end_time.unwrap();
+            let resting_unit_price = config.resting_unit_price.unwrap();
+
+            let da_price = dutch_auction_price_linear_decline(
+                config.start_time.seconds(),
+                end_time.seconds(),
+                config.unit_price.amount,
+                resting_unit_price.amount,
+        env.block.time.seconds()
+            );
+
+            return Ok(coin(da_price.u128(), config.unit_price.denom));
+        }
         return Ok(config.unit_price);
+
     }
 
     let whitelist = config.whitelist.unwrap();
@@ -626,10 +644,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::StartTime {} => to_binary(&query_start_time(deps)?),
         QueryMsg::MintableNumTokens {} => to_binary(&query_mintable_num_tokens(deps)?),
-        QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps)?),
+        QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps, _env)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
+        // QueryMsg::DutchAuctionInfo {} => to_binary(&query_dutch_auction_info(deps, _env)?),
     }
 }
+
+
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
@@ -669,9 +690,9 @@ fn query_mintable_num_tokens(deps: Deps) -> StdResult<MintableNumTokensResponse>
     Ok(MintableNumTokensResponse { count })
 }
 
-fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
+fn query_mint_price(deps: Deps, env:Env) -> StdResult<MintPriceResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let current_price = mint_price(deps, false)?;
+    let current_price = mint_price(deps, env.clone(), false)?;
     let public_price = config.unit_price;
     let whitelist_price: Option<Coin> = if let Some(whitelist) = config.whitelist {
         let wl_config: WhitelistConfigResponse = deps
@@ -681,11 +702,73 @@ fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
     } else {
         None
     };
+    let da_rest_price = config.resting_unit_price;
+    let da_end_time = if let Some(end_time) = config.end_time {
+        Some(end_time.to_string())
+    } else {
+        None
+    };
+    let da_next_price_timestamp = if let Some(end_time) = config.end_time {
+        Some(Timestamp::from_seconds(dutch_auction_linear_next_price_change_timestamp(
+            config.start_time.seconds(),
+            end_time.seconds(),
+            env.block.time.seconds(),
+        )).to_string())
+    } else {
+        None
+    };
+
+
     Ok(MintPriceResponse {
         current_price,
         public_price,
         whitelist_price,
+        da_next_price_timestamp,
+        da_end_time,
+        da_rest_price
     })
+}
+
+pub fn dutch_auction_linear_next_price_change_timestamp(
+    start_time: u64,
+    end_time: u64,
+    current_time: u64,
+) -> u64 {
+    if current_time <= start_time {
+        return start_time;
+    }
+    if current_time >= end_time {
+        return end_time;
+    }
+    let current_bucket = (current_time - start_time) / 300;
+    let next_bucket = current_bucket + 1;
+    let time_at_next_bucket = start_time + (next_bucket * 300);
+
+    time_at_next_bucket
+}
+
+pub fn dutch_auction_price_linear_decline(
+    start_time_seconds: u64,
+    end_time_seconds: u64,
+    start_price: Uint128,
+    end_price: Uint128,
+    current_time_seconds: u64,
+) -> Uint128 {
+    if current_time_seconds <= start_time_seconds {
+        return start_price;
+    }
+    if current_time_seconds >= end_time_seconds {
+        return end_price;
+    }
+    let duration = end_time_seconds - start_time_seconds;
+    let five_min_buckets = duration / 300;
+    let current_bucket = (current_time_seconds - start_time_seconds) / 300;
+
+    let price_diff = start_price - end_price;
+    let price_diff_per_bucket = price_diff.u128() / five_min_buckets as u128;
+    let current_price = start_price.u128() - (price_diff_per_bucket * current_bucket as u128);
+
+    Uint128::from(current_price)
 }
 
 // Reply callback triggered from cw721 contract instantiation
@@ -726,6 +809,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
     if version == new_version {
         return Ok(Response::new());
     }
+
+    //add migrate the config
 
     // set new contract version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;

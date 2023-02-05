@@ -14,6 +14,8 @@ pub struct InstantiateMsg {
     pub per_address_limit: u32,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
+    pub end_time:Option<Timestamp>,
+    pub resting_unit_price: Option<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -36,6 +38,7 @@ pub enum QueryMsg {
     StartTime {},
     MintPrice {},
     MintCount { address: String },
+    // DutchAuctionInfo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -66,6 +69,10 @@ pub struct MintPriceResponse {
     pub public_price: Coin,
     pub whitelist_price: Option<Coin>,
     pub current_price: Coin,
+
+    pub da_rest_price: Option<Coin>,
+    pub da_end_time: Option<String>,
+    pub da_next_price_timestamp: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

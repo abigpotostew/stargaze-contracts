@@ -60,7 +60,9 @@ cw721-base = { version = "0.13.4", features = ["library"] }
 semver = "1"
 
 
+
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0" }
 sg-multi-test = "0.12.0"
 cw-multi-test = "0.13.4"
+libmath = "0.2.1"

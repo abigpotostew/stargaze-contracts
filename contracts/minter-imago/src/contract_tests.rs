@@ -9,7 +9,7 @@ use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
 use sg721_imago::state::CollectionInfo;
 
-use crate::contract::instantiate;
+use crate::contract::{dutch_auction_linear_next_price_change_timestamp, dutch_auction_price_linear_decline, instantiate};
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
     QueryMsg, StartTimeResponse,
@@ -67,6 +67,8 @@ fn setup_minter_contract(
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -179,6 +181,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1234".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -209,6 +213,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "a".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -239,6 +245,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "a".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -269,6 +277,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.aart/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -299,6 +309,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -330,6 +342,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -360,6 +374,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -390,6 +406,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -420,6 +438,8 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        end_time: None,
+        resting_unit_price: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -439,6 +459,67 @@ fn initialization() {
         },
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+}
+
+
+#[test]
+fn dutch_auction_linear() {
+    let start = Timestamp::from_seconds(1675486368).seconds();
+    let end = Timestamp::from_seconds(1675486368 + 7 * 24 * 60 * 60).seconds();
+
+    let start_price = Uint128::from(100000000000u128);
+    let end_price = Uint128::from(1000000000u128);
+
+    //before it starts
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start - 1),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start),
+        start_price
+    );
+    //after it ends, it stays at resting price
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, end),
+        end_price
+    );
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, end + 1000),
+        end_price
+    );
+
+    // during declining period price gradually decreases linearly
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 299),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 300),
+        start_price - Uint128::from(49107142u128)
+    );
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 599),
+        start_price - Uint128::from(49107142u128)
+    );
+    assert_eq!(
+        dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 600),
+        start_price - Uint128::from(49107142u128 * 2)
+    );
+
+    // check the timestamp of the next price change
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000),
+        start
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start),
+        start
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start + 1),
+        start + 49107142u64
+    );
 }
 
 #[test]
