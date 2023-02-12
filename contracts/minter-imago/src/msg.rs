@@ -27,7 +27,8 @@ pub enum ExecuteMsg {
     UpdatePerAddressLimit { per_address_limit: u32 },
     MintTo { recipient: String },
     BurnRemaining {},
-    UpdateUnitPrice { price: u128 },
+    UpdatePrice { unit_price: u128 },
+    UpdateDutchAuction { unit_price:u128, resting_price:u128, start_time:Timestamp, end_time:Timestamp },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

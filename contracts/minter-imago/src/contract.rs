@@ -3,9 +3,9 @@ use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal,
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 use cw721_base::{MintMsg, msg::ExecuteMsg as Cw721ExecuteMsg};
-use cw_utils::{may_pay, nonpayable, maybe_addr, must_pay, parse_reply_instantiate_data};
-use sg1::{checked_fair_burn, FeeError};
+use cw_utils::{may_pay, maybe_addr, must_pay, nonpayable, parse_reply_instantiate_data};
 use semver::Version;
+use sg1::{checked_fair_burn, FeeError};
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
 
@@ -44,7 +44,7 @@ const AIRDROP_MINT_PRICE: u128 = 15_000_000;
 const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
-const PW_MINT_FEE_PERCENT: u64 = 15;
+const PW_MINT_FEE_PERCENT: u64 = 2;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -80,13 +80,11 @@ pub fn instantiate(
         });
     }
 
-    // Check that the price is greater than the minimum
-    if MIN_MINT_PRICE > msg.unit_price.amount.into() {
-        return Err(ContractError::InsufficientMintPrice {
-            expected: MIN_MINT_PRICE,
-            got: msg.unit_price.amount.into(),
-        });
+    let valid = validate_price(msg.unit_price.amount.u128());
+    if valid.is_err() {
+        return Err(valid.err().unwrap());
     }
+
 
     // If current time is beyond the provided start time return error
     if env.block.time > msg.start_time {
@@ -128,6 +126,21 @@ pub fn instantiate(
         return Err(ContractError::InvalidCodeUri {});
     }
 
+    //dutch auction config checks
+    let is_dutch_auction = msg.end_time.is_some() && msg.resting_unit_price.is_some();
+    let is_fixed_price = msg.end_time.is_none() && msg.resting_unit_price.is_none();
+    if !is_dutch_auction && !is_fixed_price {
+        return Err(ContractError::MissingDutchAuctionConfiguration {});
+    }
+    if is_dutch_auction {
+        let valid_dutch_auction = validate_dutch_auction(msg.start_time, msg.end_time.unwrap(),
+                                                         msg.unit_price.amount.u128(), msg.resting_unit_price.clone().unwrap().amount.u128());
+        if valid_dutch_auction.is_err() {
+            return Err(valid_dutch_auction.err().unwrap());
+        }
+    }
+
+
     let config = Config {
         admin: info.sender.clone(),
         base_token_uri,
@@ -138,7 +151,7 @@ pub fn instantiate(
         whitelist: whitelist_addr,
         start_time: msg.start_time,
         end_time: msg.end_time,
-        resting_unit_price: msg.resting_unit_price,
+        resting_unit_price: msg.resting_unit_price.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
     MINTABLE_NUM_TOKENS.save(deps.storage, &msg.num_tokens)?;
@@ -178,6 +191,20 @@ pub fn instantiate(
         .add_submessages(sub_msgs))
 }
 
+fn validate_dutch_auction(start_time: Timestamp, end_time: Timestamp, start_price: u128, resting_price: u128) -> Result<(), ContractError> {
+    let valid = validate_price(start_price);
+    if valid.is_err() {
+        return Err(valid.err().unwrap());
+    }
+    if end_time <= start_time {
+        return Err(ContractError::InvalidEndTime {});
+    }
+    if resting_price >= start_price {
+        return Err(ContractError::InvalidRestingPrice {});
+    }
+    return Ok(());
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -196,7 +223,8 @@ pub fn execute(
             execute_set_whitelist(deps, env, info, &whitelist)
         }
         ExecuteMsg::BurnRemaining {} => execute_burn_remaining(deps, env, info),
-        ExecuteMsg::UpdateUnitPrice {price} => execute_update_unit_price(deps, info, price),
+        ExecuteMsg::UpdatePrice { unit_price } => execute_update_unit_price(deps, info, unit_price),
+        ExecuteMsg::UpdateDutchAuction { start_time, end_time, unit_price, resting_price } => execute_update_dutch_auction(deps, info, start_time, end_time, unit_price, resting_price),
     }
 }
 
@@ -340,15 +368,17 @@ fn _execute_mint(
         None => info.sender.clone(),
     };
 
-    let mint_price: Coin = mint_price(deps.as_ref(),env.clone(), is_admin)?;
+    let mint_price: Coin = mint_price(deps.as_ref(), env.clone(), is_admin)?;
     // Exact payment only accepted
     let payment = may_pay(&info, &config.unit_price.denom)?;
-    if payment != mint_price.amount {
+
+    if payment < mint_price.amount {
         return Err(ContractError::IncorrectPaymentAmount(
             coin(payment.u128(), &config.unit_price.denom),
             mint_price,
         ));
     }
+
 
     let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
 
@@ -362,13 +392,19 @@ fn _execute_mint(
 
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()))?;
     //only take pw fee if it's not an airdrop
-    let pw_fee = if fee_percent ==  Decimal::percent(MINT_FEE_PERCENT as u64) {
+    let pw_fee = if fee_percent == Decimal::percent(MINT_FEE_PERCENT as u64) {
         let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
         msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
         pw_fee
-    }else{
+    } else {
         Uint128::from(0u128)
     };
+
+    // Create refund fee msg if the sender overpaid.
+    if payment > mint_price.amount {
+        let sender = deps.api.addr_validate(&info.sender.to_string())?;
+        msgs.append(&mut refund_fee_msg((payment - mint_price.amount).u128(), sender));
+    }
 
     msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr)?);
 
@@ -453,6 +489,20 @@ fn pw_fee_msg(
     msgs.push(CosmosMsg::Bank(msg));
 
     Ok(msgs)
+}
+
+fn refund_fee_msg(
+    amount: u128,
+    sender: Addr,
+) -> Vec<CosmosMsg<StargazeMsgWrapper>> {
+    let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
+    let msg = BankMsg::Send {
+        to_address: sender.to_string(),
+        amount: coins(amount, NATIVE_DENOM),
+    };
+    msgs.push(CosmosMsg::Bank(msg));
+
+    msgs
 }
 
 pub fn execute_burn_remaining(
@@ -553,6 +603,16 @@ pub fn execute_update_per_address_limit(
         .add_attribute("limit", per_address_limit.to_string()))
 }
 
+fn validate_price(price: u128) -> Result<(), ContractError> {
+    if price < MIN_MINT_PRICE {
+        return Err(ContractError::InsufficientMintPrice {
+            expected: MIN_MINT_PRICE,
+            got: price,
+        });
+    }
+    Ok(())
+}
+
 pub fn execute_update_unit_price(
     deps: DepsMut,
     info: MessageInfo,
@@ -565,14 +625,17 @@ pub fn execute_update_unit_price(
             "Sender is not an admin".to_owned(),
         ));
     }
-    // Check that the price is greater than the minimum
-    if MIN_MINT_PRICE > price {
-        return Err(ContractError::InsufficientMintPrice {
-            expected: MIN_MINT_PRICE,
-            got: price,
-        });
+    let valid = validate_price(price);
+    if valid.is_err() {
+        return Err(valid.err().unwrap());
     }
+
+
+    //update the unit price and remove dutch auction settings
     config.unit_price = coin(price, config.unit_price.denom);
+    config.end_time = None;
+    config.resting_unit_price = None;
+
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
         .add_attribute("action", "update_unit_price")
@@ -580,10 +643,40 @@ pub fn execute_update_unit_price(
         .add_attribute("unit_price", price.to_string()))
 }
 
+pub fn execute_update_dutch_auction(
+    deps: DepsMut,
+    info: MessageInfo,
+    start_time: Timestamp, end_time: Timestamp, unit_price: u128, resting_price: u128,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    }
+
+    let valid = validate_dutch_auction(start_time, end_time, unit_price, resting_price);
+    if valid.is_err() {
+        return Err(valid.err().unwrap());
+    }
+
+    config.start_time = start_time;
+    config.end_time = Some(end_time);
+    config.unit_price = coin(unit_price, config.unit_price.clone().denom);
+    config.resting_unit_price = Some(coin(resting_price, config.unit_price.clone().denom));
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "update_unit_price")
+        .add_attribute("sender", info.sender)
+        .add_attribute("unit_price", unit_price.to_string()))
+}
+
 // if admin_no_fee => no fee,
 // else if in whitelist => whitelist price
 // else => config unit price
-pub fn mint_price(deps: Deps, env:Env, is_admin: bool) -> Result<Coin, StdError> {
+pub fn mint_price(deps: Deps, env: Env, is_admin: bool) -> Result<Coin, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
     if is_admin {
@@ -600,13 +693,12 @@ pub fn mint_price(deps: Deps, env:Env, is_admin: bool) -> Result<Coin, StdError>
                 end_time.seconds(),
                 config.unit_price.amount,
                 resting_unit_price.amount,
-        env.block.time.seconds()
+                env.block.time.seconds(),
             );
 
             return Ok(coin(da_price.u128(), config.unit_price.denom));
         }
         return Ok(config.unit_price);
-
     }
 
     let whitelist = config.whitelist.unwrap();
@@ -651,7 +743,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 
-
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let sg721_address = SG721_ADDRESS.load(deps.storage)?;
@@ -690,7 +781,7 @@ fn query_mintable_num_tokens(deps: Deps) -> StdResult<MintableNumTokensResponse>
     Ok(MintableNumTokensResponse { count })
 }
 
-fn query_mint_price(deps: Deps, env:Env) -> StdResult<MintPriceResponse> {
+fn query_mint_price(deps: Deps, env: Env) -> StdResult<MintPriceResponse> {
     let config = CONFIG.load(deps.storage)?;
     let current_price = mint_price(deps, env.clone(), false)?;
     let public_price = config.unit_price;
@@ -704,16 +795,17 @@ fn query_mint_price(deps: Deps, env:Env) -> StdResult<MintPriceResponse> {
     };
     let da_rest_price = config.resting_unit_price;
     let da_end_time = if let Some(end_time) = config.end_time {
-        Some(end_time.to_string())
+        Some(end_time.nanos().to_string())
     } else {
         None
     };
     let da_next_price_timestamp = if let Some(end_time) = config.end_time {
-        Some(Timestamp::from_seconds(dutch_auction_linear_next_price_change_timestamp(
+        let value = Timestamp::from_seconds(dutch_auction_linear_next_price_change_timestamp(
             config.start_time.seconds(),
             end_time.seconds(),
             env.block.time.seconds(),
-        )).to_string())
+        ));
+        Some(value.nanos().to_string())
     } else {
         None
     };
@@ -725,7 +817,7 @@ fn query_mint_price(deps: Deps, env:Env) -> StdResult<MintPriceResponse> {
         whitelist_price,
         da_next_price_timestamp,
         da_end_time,
-        da_rest_price
+        da_rest_price,
     })
 }
 
@@ -734,7 +826,7 @@ pub fn dutch_auction_linear_next_price_change_timestamp(
     end_time: u64,
     current_time: u64,
 ) -> u64 {
-    if current_time <= start_time {
+    if current_time < start_time {
         return start_time;
     }
     if current_time >= end_time {

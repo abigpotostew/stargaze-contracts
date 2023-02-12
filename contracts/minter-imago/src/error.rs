@@ -54,6 +54,12 @@ pub enum ContractError {
     #[error("InvalidStartTime {0} < {1}")]
     InvalidStartTime(Timestamp, Timestamp),
 
+    #[error("End time must be after start time")]
+    InvalidEndTime {},
+
+    #[error("Resting price must be less than unit price")]
+    InvalidRestingPrice {},
+
     #[error("Instantiate sg721 error")]
     InstantiateSg721Error {},
 
@@ -89,6 +95,9 @@ pub enum ContractError {
 
     #[error("InvalidCodeUri")]
     InvalidCodeUri {},
+
+    #[error("MissingDutchAuctionConfiguration")]
+    MissingDutchAuctionConfiguration {},
 }
 
 impl From<ParseError> for ContractError {
