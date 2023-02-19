@@ -9,7 +9,7 @@ use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
 use sg721_imago::state::CollectionInfo;
 
-use crate::contract::{dutch_auction_linear_next_price_change_timestamp, dutch_auction_price_linear_decline, instantiate};
+use crate::contract::{discrete_gda, dutch_auction_linear_next_price_change_timestamp, dutch_auction_price_linear_decline, instantiate};
 use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 
 const CREATION_FEE: u128 = 1_000_000_000;
@@ -541,18 +541,9 @@ fn dutch_auction_linear() {
     let auction_duration = end - start;
     let five_minutes_seconds = 5 * 60;
     let price_diff = start_price.u128() - end_price.u128();
-    let price_drop_per_period = (price_diff/(auction_duration as u128 / five_minutes_seconds)) ;
+    let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds);
 
 
-
-    let tests_price = [
-        (start - 1, start_price),
-        (start, start_price),
-        (start + 1, start_price - price_drop_per_period.into()),
-        (start + 5 * 60, start_price - 5 * price_drop_per_period.into()),
-        (start + 7 * 24 * 60 * 60, end_price),
-        (start + 7 * 24 * 60 * 60 + 1, end_price),
-    ];
 
     //before it starts
     assert_eq!(
@@ -592,60 +583,56 @@ fn dutch_auction_linear() {
     );
 
 
-    let tests = [
-        // 7 day auction
-        (start, end, start - 10000, start),
-                 (start, end, start, start + 300),
-                 (start, end, start + 1, start + 300),
-                 (start, end, end, end),
-                 (start, end, end-1, end),
-                 (start, end, end+1, end),
-        //one hour auction
-        (start, start + 3600, start - 10000, start),
-        (start, start + 3600, start, start + 300),
-        (start, start + 3600, start + 1, start + 300),
-        (start, start + 3600, start + 300, start + 600),
-        (start, start + 3600, end, start + 3600),
-    ];
-    for (start_, end, current, expected) in tests.iter() {
-        let actual =  dutch_auction_linear_next_price_change_timestamp(*start_, *end, *current);
-        if  actual != *expected {
-            println!("start: {}, end: {}, current: {}, expected: {}, actual: {}", start_-start, end-start_, current-start_, expected-start_, actual-start_);
-        }
-        assert_eq!(
-            actual,
-            *expected
-        );
-    }
 
-    // // check the timestamp of the next price change
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000),
-    //     start
-    // );
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, start),
-    //     start + 300
-    // );
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, start + 1),
-    //     start + 300
-    // );
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, end),
-    //     end
-    // );
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, end-1),
-    //     end
-    // );
-    // assert_eq!(
-    //     dutch_auction_linear_next_price_change_timestamp(start, end, end+1),
-    //     end
-    // );
+
+    // check the timestamp of the next price change
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000),
+        start
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start),
+        start + 300
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, start + 1),
+        start + 300
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, end),
+        end
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, end-1),
+        end
+    );
+    assert_eq!(
+        dutch_auction_linear_next_price_change_timestamp(start, end, end+1),
+        end
+    );
 }
 
 #[test]
+fn dutch_auction_gda() {
+    let start = Timestamp::from_seconds(1675486368).seconds();
+    let end = Timestamp::from_seconds(start + 7 * 24 * 60 * 60).seconds();
+
+    let start_price = Uint128::from(100000000000u128);
+    let end_price = Uint128::from(1000000000u128);
+
+    // let auction_duration = end - start;
+    // let five_minutes_seconds = 5 * 60;
+    // let price_diff = start_price.u128() - end_price.u128();
+    // let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds);
+
+    let cost = discrete_gda(100, 0, start, end, start_price, end_price, start +1);
+    assert_eq!(
+        cost,
+        start_price
+    );
+}
+
+    #[test]
 fn happy_path() {
     let mut router = custom_mock_app();
     setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
@@ -972,9 +959,9 @@ fn happy_path_dutch_auction() {
     let unit_price = 100_000_000u128; //100 stars
     let resting_price = 10_000_000; // 10 stars
     let price_diff = unit_price - resting_price;
-    let price_drop_per_period = (price_diff/(one_hour_nanos as u128 /five_minutes_nanos)) ;
+    let price_drop_per_period = price_diff/(one_hour_nanos as u128 /five_minutes_nanos);
 
-    let (minter_addr, config) = setup_minter_contract_dutch_auction(&mut router, &creator, num_tokens, end_time, unit_price, resting_price);
+    let (minter_addr, _) = setup_minter_contract_dutch_auction(&mut router, &creator, num_tokens, end_time, unit_price, resting_price);
     let mut buyer_spent = 0u128;
 
     // // Get dev address balance Before any actions
@@ -1121,8 +1108,8 @@ fn happy_path_dutch_auction() {
         buyer.clone(),
         minter_addr.clone(),
         &mint_msg,
-        &coins( resting_price + price_drop_per_period - 1, NATIVE_DENOM),
-    );
+        &coins(resting_price + price_drop_per_period - 1, NATIVE_DENOM),
+    ).unwrap();
     assert!(err.is_err());
 
     // mint just before price drops

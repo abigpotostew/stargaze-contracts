@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, WasmMsg};
+use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, Uint256, WasmMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
@@ -20,7 +20,7 @@ use crate::msg::{
     MintPriceResponse, QueryMsg, StartTimeResponse,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, MINTER_LAST_BLOCK, SG721_ADDRESS,
+    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS,
 };
 
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
@@ -441,13 +441,6 @@ fn _execute_mint(
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
     MINTER_ADDRS.save(deps.storage, info.clone().sender, &new_mint_count)?;
 
-    // only allow one mint per address per block
-    let last_block_minter_sender = last_block_minted(deps.as_ref(), &info)?;
-    if last_block_minter_sender == env.block.height {
-        return Err(ContractError::MaxOneMintPerBlock {});
-    }
-    MINTER_LAST_BLOCK.save(deps.storage, info.clone().sender, &env.block.height)?;
-
     let seller_amount = if !is_admin {
         let amount = mint_price.amount - network_fee - pw_fee;
         let msg = BankMsg::Send {
@@ -722,13 +715,7 @@ fn mint_count(deps: Deps, info: &MessageInfo) -> Result<u32, StdError> {
     Ok(mint_count)
 }
 
-fn last_block_minted(deps: Deps, info: &MessageInfo) -> Result<u64, StdError> {
-    let last_block_minted = (MINTER_LAST_BLOCK
-        .key(info.sender.clone())
-        .may_load(deps.storage)?)
-        .unwrap_or(0);
-    Ok(last_block_minted)
-}
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -861,6 +848,40 @@ pub fn dutch_auction_price_linear_decline(
     let current_price = start_price.u128() - (price_diff_per_bucket * current_bucket as u128);
 
     Uint128::from(current_price)
+}
+
+pub fn discrete_gda(
+    quantity_tokens: u64,
+    num_tokens: u64,//current token id
+    start_time_seconds: u64,
+    end_time_seconds: u64,
+    start_price: Uint128,
+    end_price: Uint128,
+    current_time_seconds: u64,
+) -> Uint128 {
+    //https://github.com/FrankieIsLost/gradual-dutch-auction/blob/master/src/DiscreteGDA.sol
+    let quantity = quantity_tokens as u32;
+    let num_sold = num_tokens as u32;
+    let time_since_start = current_time_seconds - start_time_seconds;
+
+    // 1_000_000
+
+    let base_token_precision:i128 = 1_000_000;
+
+    let scale_factor:i128 = base_token_precision * 11 / 10;
+    let decay_constant:i128 = base_token_precision / 2;
+
+    let num1:i128 = (start_price.u128() as i128) * (scale_factor.pow(num_sold ));
+    let num2:i128 = scale_factor.pow(quantity ) - base_token_precision;
+    let den1:i128 = (decay_constant*(time_since_start as i128)).exp();
+    let den2 :i128= scale_factor - base_token_precision;
+
+    let total_cost = num1 * num2 / (den1 * den2);;
+    //total cost is already in terms of wei so no need to scale down before
+    //conversion to uint. This is due to the fact that the original formula gives
+    //price in terms of ether but we scale up by 10^18 during computation
+    //in order to do fixed point math.
+    return Uint128::from(total_cost as u128);
 }
 
 // Reply callback triggered from cw721 contract instantiation

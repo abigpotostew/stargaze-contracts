@@ -90,9 +90,6 @@ pub enum ContractError {
     #[error("{0}")]
     Fee(#[from] FeeError),
 
-    #[error("MaxOneMintPerBlock")]
-    MaxOneMintPerBlock {},
-
     #[error("InvalidCodeUri")]
     InvalidCodeUri {},
 
