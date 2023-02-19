@@ -531,11 +531,28 @@ fn initialization() {
 
 #[test]
 fn dutch_auction_linear() {
+
     let start = Timestamp::from_seconds(1675486368).seconds();
-    let end = Timestamp::from_seconds(1675486368 + 7 * 24 * 60 * 60).seconds();
+    let end = Timestamp::from_seconds(start + 7 * 24 * 60 * 60).seconds();
 
     let start_price = Uint128::from(100000000000u128);
     let end_price = Uint128::from(1000000000u128);
+
+    let auction_duration = end - start;
+    let five_minutes_seconds = 5 * 60;
+    let price_diff = start_price.u128() - end_price.u128();
+    let price_drop_per_period = (price_diff/(auction_duration as u128 / five_minutes_seconds)) ;
+
+
+
+    let tests_price = [
+        (start - 1, start_price),
+        (start, start_price),
+        (start + 1, start_price - price_drop_per_period.into()),
+        (start + 5 * 60, start_price - 5 * price_drop_per_period.into()),
+        (start + 7 * 24 * 60 * 60, end_price),
+        (start + 7 * 24 * 60 * 60 + 1, end_price),
+    ];
 
     //before it starts
     assert_eq!(
@@ -563,30 +580,69 @@ fn dutch_auction_linear() {
     );
     assert_eq!(
         dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 300),
-        start_price - Uint128::from(49107142u128)
+        start_price - Uint128::from(price_drop_per_period)
     );
     assert_eq!(
         dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 599),
-        start_price - Uint128::from(49107142u128)
+        start_price - Uint128::from(price_drop_per_period)
     );
     assert_eq!(
         dutch_auction_price_linear_decline(start, end, start_price, end_price, start + 600),
-        start_price - Uint128::from(49107142u128 * 2)
+        start_price - Uint128::from(price_drop_per_period * 2)
     );
 
-    // check the timestamp of the next price change
-    assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000),
-        start
-    );
-    assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start),
-        start
-    );
-    assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start + 1),
-        start + 49107142u64
-    );
+
+    let tests = [
+        // 7 day auction
+        (start, end, start - 10000, start),
+                 (start, end, start, start + 300),
+                 (start, end, start + 1, start + 300),
+                 (start, end, end, end),
+                 (start, end, end-1, end),
+                 (start, end, end+1, end),
+        //one hour auction
+        (start, start + 3600, start - 10000, start),
+        (start, start + 3600, start, start + 300),
+        (start, start + 3600, start + 1, start + 300),
+        (start, start + 3600, start + 300, start + 600),
+        (start, start + 3600, end, start + 3600),
+    ];
+    for (start_, end, current, expected) in tests.iter() {
+        let actual =  dutch_auction_linear_next_price_change_timestamp(*start_, *end, *current);
+        if  actual != *expected {
+            println!("start: {}, end: {}, current: {}, expected: {}, actual: {}", start_-start, end-start_, current-start_, expected-start_, actual-start_);
+        }
+        assert_eq!(
+            actual,
+            *expected
+        );
+    }
+
+    // // check the timestamp of the next price change
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000),
+    //     start
+    // );
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, start),
+    //     start + 300
+    // );
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, start + 1),
+    //     start + 300
+    // );
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, end),
+    //     end
+    // );
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, end-1),
+    //     end
+    // );
+    // assert_eq!(
+    //     dutch_auction_linear_next_price_change_timestamp(start, end, end+1),
+    //     end
+    // );
 }
 
 #[test]
@@ -1061,7 +1117,7 @@ fn happy_path_dutch_auction() {
 
     // failed to mint just before price drops
     let mint_msg = ExecuteMsg::Mint {};
-    let res = router.execute_contract(
+    router.execute_contract(
         buyer.clone(),
         minter_addr.clone(),
         &mint_msg,
