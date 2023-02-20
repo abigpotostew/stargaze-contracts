@@ -14,8 +14,15 @@ pub struct InstantiateMsg {
     pub per_address_limit: u32,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
-    pub end_time:Option<Timestamp>,
-    pub resting_unit_price: Option<Coin>,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionConfig {
+    pub end_time: Timestamp,
+    pub resting_unit_price: Coin,
+    pub decline_period_seconds: u64,
+    pub decline_coefficient: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,7 +35,7 @@ pub enum ExecuteMsg {
     MintTo { recipient: String },
     BurnRemaining {},
     UpdatePrice { unit_price: u128 },
-    UpdateDutchAuction { unit_price:u128, resting_price:u128, start_time:Timestamp, end_time:Timestamp },
+    UpdateDutchAuction { dutch_auction_config:DutchAuctionConfig, unit_price:u128, start_time:Timestamp},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -71,9 +78,9 @@ pub struct MintPriceResponse {
     pub whitelist_price: Option<Coin>,
     pub current_price: Coin,
 
-    pub da_rest_price: Option<Coin>,
-    pub da_end_time: Option<String>,
-    pub da_next_price_timestamp: Option<String>,
+    pub auction_rest_price: Option<Coin>,
+    pub auction_end_time: Option<String>,
+    pub auction_next_price_timestamp: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -13,9 +13,16 @@ pub struct Config {
     pub unit_price: Coin,
     pub whitelist: Option<Addr>,
     pub start_time: Timestamp,
-    pub end_time: Option<Timestamp>,
-    pub resting_unit_price: Option<Coin>,
     pub per_address_limit: u32,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionConfig {
+    pub end_time: Timestamp,
+    pub resting_unit_price: Coin,
+    pub decline_period_seconds: u64,
+    pub decline_coefficient: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

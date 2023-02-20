@@ -60,6 +60,12 @@ pub enum ContractError {
     #[error("Resting price must be less than unit price")]
     InvalidRestingPrice {},
 
+    #[error("Decline period must be greater than 0 and less than the auction duration")]
+    InvalidDeclinePeriodSeconds {},
+
+    #[error("Dutch auction decline coefficient must be less than 1000000")]
+    InvalidDutchAuctionDeclineCoefficient {},
+
     #[error("Instantiate sg721 error")]
     InstantiateSg721Error {},
 
@@ -92,9 +98,6 @@ pub enum ContractError {
 
     #[error("InvalidCodeUri")]
     InvalidCodeUri {},
-
-    #[error("MissingDutchAuctionConfiguration")]
-    MissingDutchAuctionConfiguration {},
 }
 
 impl From<ParseError> for ContractError {
