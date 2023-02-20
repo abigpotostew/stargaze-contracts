@@ -22,7 +22,7 @@ pub struct DutchAuctionConfig {
     pub end_time: Timestamp,
     pub resting_unit_price: Coin,
     pub decline_period_seconds: u64,
-    pub decline_coefficient: u64,
+    pub decline_decay: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -63,8 +63,8 @@ pub enum ContractError {
     #[error("Decline period must be greater than 0 and less than the auction duration")]
     InvalidDeclinePeriodSeconds {},
 
-    #[error("Dutch auction decline coefficient must be less than 1000000")]
-    InvalidDutchAuctionDeclineCoefficient {},
+    #[error("Dutch auction decline decay must be less than 1000000")]
+    InvalidDutchAuctionDeclineDecay {},
 
     #[error("Instantiate sg721 error")]
     InstantiateSg721Error {},

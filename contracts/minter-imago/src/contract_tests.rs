@@ -9,7 +9,7 @@ use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
 use sg721_imago::state::CollectionInfo;
 
-use crate::contract::{declining_dutch_auction, discrete_gda, dutch_auction_linear_next_price_change_timestamp, dutch_auction_price_linear_decline, instantiate};
+use crate::contract::{declining_dutch_auction,  dutch_auction_linear_next_price_change_timestamp, instantiate};
 use crate::msg::{ConfigResponse, DutchAuctionConfig, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 
 const CREATION_FEE: u128 = 1_000_000_000;
@@ -129,7 +129,7 @@ fn setup_minter_contract_dutch_auction(
             end_time: (Timestamp::from_nanos(end_time)),
             resting_unit_price: (coin(resting_unit_price, NATIVE_DENOM)),
             decline_period_seconds: 300,
-            decline_coefficient: 850000,
+            decline_decay: 850000,
         }),
 
         sg721_instantiate_msg: Sg721InstantiateMsg {
@@ -640,80 +640,78 @@ fn dutch_auction_decline_linear() {
     let start = Timestamp::from_seconds(167540000).seconds();
     let end = Timestamp::from_seconds(start + 7 * 24 * 60 * 60).seconds();
 
-    let duration = end - start;
     let start_price = Uint128::from(100000000000u128);
     let end_price = Uint128::from(1000000000u128);
 
     let auction_duration = end - start;
     let five_minutes_seconds = 5 * 60;
     let price_diff = start_price.u128() - end_price.u128();
-    let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds);
+    let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds) + 1;
 
     // linear decay
-    let b = 0.5;
+    const DECAY: f64 = 0.5;
 
-    //before it starts
-    const decline_period: u64 = 300;
+    const DECLINE_PERIOD: u64 = 300;
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start - 1, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD),
         start_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD),
         start_price
     );
     //after it ends, it stays at resting price
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, end, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD),
         end_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, end + 1000, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD),
         end_price
     );
 
     // during declining period price gradually decreases linearly
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 299, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD),
         start_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + decline_period, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start + DECLINE_PERIOD, DECAY, DECLINE_PERIOD),
         start_price - Uint128::from(price_drop_per_period)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 599, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD),
         start_price - Uint128::from(price_drop_per_period)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 600, b, decline_period),
+        declining_dutch_auction(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD),
         start_price - Uint128::from(price_drop_per_period * 2)
     );
 
 
     // check the timestamp of the next price change
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000, decline_period),
+        dutch_auction_linear_next_price_change_timestamp(start, end, start - 10000, DECLINE_PERIOD),
         start
     );
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start, decline_period),
-        start + decline_period
+        dutch_auction_linear_next_price_change_timestamp(start, end, start, DECLINE_PERIOD),
+        start + DECLINE_PERIOD
     );
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, start + 1, decline_period),
-        start + decline_period
+        dutch_auction_linear_next_price_change_timestamp(start, end, start + 1, DECLINE_PERIOD),
+        start + DECLINE_PERIOD
     );
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, end, decline_period),
+        dutch_auction_linear_next_price_change_timestamp(start, end, end, DECLINE_PERIOD),
         end
     );
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, end-1, decline_period),
+        dutch_auction_linear_next_price_change_timestamp(start, end, end-1, DECLINE_PERIOD),
         end
     );
     assert_eq!(
-        dutch_auction_linear_next_price_change_timestamp(start, end, end+1, decline_period),
+        dutch_auction_linear_next_price_change_timestamp(start, end, end+1, DECLINE_PERIOD),
         end
     );
 }
@@ -726,61 +724,61 @@ fn dutch_auction_decline_exp() {
     let start_price = Uint128::from(100000000000u128);
     let end_price = Uint128::from(1000000000u128);
 
-    const b:f64 = 0.85;
-    const decline_period_seconds: u64 = 300;
+    const DECAY:f64 = 0.85;
+    const DECLINE_PERIOD_SECONDS: u64 = 300;
 
     //before it starts
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start - 1, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD_SECONDS),
         start_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD_SECONDS),
         start_price
     );
     //after it ends, it stays at resting price
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, end, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD_SECONDS),
         end_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, end + 1000, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD_SECONDS),
         end_price
     );
 
     // during declining period price gradually decreases linearly
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 299, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD_SECONDS),
         start_price
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + decline_period_seconds, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + DECLINE_PERIOD_SECONDS, DECAY, DECLINE_PERIOD_SECONDS),
         Uint128::from(47406250000u128)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 599, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD_SECONDS),
         Uint128::from(47406250000u128)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 600, b, decline_period_seconds),
-        Uint128::from(26826086956u128)
+        declining_dutch_auction(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(26826086957u128)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 900, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + 900, DECAY, DECLINE_PERIOD_SECONDS),
         Uint128::from(15850000000u128)
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 1200, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + 1200, DECAY, DECLINE_PERIOD_SECONDS),
         Uint128::from(9027027027u128)
 
     );
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 1500, b, decline_period_seconds),
-        Uint128::from(4374999999u128)
+        declining_dutch_auction(start, end, start_price, end_price, start + 1500, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(4375000000u128)
     );
 
     assert_eq!(
-        declining_dutch_auction(start, end, start_price, end_price, start + 1800, b, decline_period_seconds),
+        declining_dutch_auction(start, end, start_price, end_price, start + 1800, DECAY, DECLINE_PERIOD_SECONDS),
         Uint128::from(1000000000u128)
     );
 }
@@ -845,7 +843,7 @@ fn happy_path() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 75_000_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 88_000_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
@@ -926,7 +924,7 @@ fn happy_path() {
         .query_all_balances(creator.to_string())
         .unwrap();
     assert_eq!(1, pw_balance_creator.len());
-    assert_eq!(pw_balance_creator[0].amount.u128(), 2_060_000_000); //fair burn plus PW fees
+    assert_eq!(pw_balance_creator[0].amount.u128(), 2_073_000_000); //fair burn plus PW fees
 
     // Minter contract should not have a balance
     let minter_balance = router
@@ -941,7 +939,7 @@ fn happy_path() {
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
     assert_eq!(1, pw_balance2.len());
-    assert_eq!(pw_balance2[0].amount.u128(), 117_500_000); //fair burn plus PW fees
+    assert_eq!(pw_balance2[0].amount.u128(), 104_500_000); //fair burn plus PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
@@ -1107,23 +1105,12 @@ fn happy_path_dutch_auction() {
     assert_eq!(0, pw_balance_before.len());
 
     let one_hour_nanos = 3600 * 1_000_000_000;
-    let five_minutes_nanos = 5 * 60 * 1_000_000_000;
     let end_time = GENESIS_MINT_START_TIME + one_hour_nanos;
     let unit_price = 100_000_000u128; //100 stars
     let resting_price = 10_000_000; // 10 stars
-    let price_diff = unit_price - resting_price;
-    let price_drop_per_period = price_diff/(one_hour_nanos as u128 /five_minutes_nanos);
 
     let (minter_addr, _) = setup_minter_contract_dutch_auction(&mut router, &creator, num_tokens, end_time, unit_price, resting_price);
-    let mut buyer_spent = 0u128;
 
-    // // Get dev address balance Before any actions
-    // let pw_balance_after_mint = router
-    //     .wrap()
-    //     .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
-    //     .unwrap();
-    // assert_eq!(1, pw_balance_after_mint.len());
-    // assert_eq!(pw_balance_after_mint[0].amount.u128(), PW_CREATE_FEE);
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -1171,7 +1158,6 @@ fn happy_path_dutch_auction() {
         &coins(unit_price, NATIVE_DENOM),
     );
     assert!(res.is_ok());
-    buyer_spent += unit_price;
 
     setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_minute_nanos*2, 3);
 
@@ -1187,7 +1173,6 @@ fn happy_path_dutch_auction() {
         println!("Error: {}", e);
         assert!(res.is_ok());
     }
-    buyer_spent += unit_price;
 
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
@@ -1197,7 +1182,7 @@ fn happy_path_dutch_auction() {
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
         buyer_balances,
-        coins(INITIAL_BALANCE - buyer_spent, NATIVE_DENOM)
+        coins(INITIAL_BALANCE - 200_000_000, NATIVE_DENOM)
     );
 
     let six_minutes_nanos = 6 * 60 * 1_000_000_000;
@@ -1217,19 +1202,19 @@ fn happy_path_dutch_auction() {
         assert!(res.is_ok());
     }
     // dutch auction price after 6 minutes
-    buyer_spent += unit_price - price_drop_per_period;
+    // buyer_spent += unit_price - price_drop_per_period;
 
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 257_400_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 237_072_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
         buyer_balances,
-        coins(INITIAL_BALANCE - buyer_spent, NATIVE_DENOM)
+        coins(INITIAL_BALANCE - 200_000_000 - 69_400_000, NATIVE_DENOM)
     );
-
+    //
     let res: MintPriceResponse = router
         .wrap()
         .query_wasm_smart(
@@ -1237,7 +1222,7 @@ fn happy_path_dutch_auction() {
             &QueryMsg::MintPrice {},
         )
         .unwrap();
-    assert_eq!(res.current_price.amount.u128(), unit_price - price_drop_per_period);
+    assert_eq!(res.current_price.amount.u128(), 69_400_000 );
 
     setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_hour_nanos - 1, 5);
     // read the price parameters just before price drops
@@ -1248,22 +1233,23 @@ fn happy_path_dutch_auction() {
             &QueryMsg::MintPrice {},
         )
         .unwrap();
-    assert_eq!(res.current_price.amount.u128(), resting_price + price_drop_per_period);
+    assert_eq!(res.current_price.amount.u128(), 11_421_053 );
     assert_eq!(res.public_price.amount.u128(), unit_price);
     assert_eq!(u64::from_str_radix(res.auction_end_time.unwrap().as_str(), 10).unwrap(), end_time);
     let next_price_time = end_time;
     assert_eq!(u64::from_str_radix(res.auction_next_price_timestamp.unwrap().as_str(), 10).unwrap(), next_price_time);
 
 
-    // failed to mint just before price drops
+    // failed to mint just before price drops due to insufficient funds
     let mint_msg = ExecuteMsg::Mint {};
-    router.execute_contract(
+    let res = router.execute_contract(
         buyer.clone(),
         minter_addr.clone(),
         &mint_msg,
-        &coins(resting_price + price_drop_per_period - 1, NATIVE_DENOM),
-    ).unwrap();
-    assert!(err.is_err());
+        &coins(resting_price , NATIVE_DENOM),
+    );
+
+    assert!(res.is_err());
 
     // mint just before price drops
     let mint_msg = ExecuteMsg::Mint {};
@@ -1271,13 +1257,12 @@ fn happy_path_dutch_auction() {
         buyer.clone(),
         minter_addr.clone(),
         &mint_msg,
-        &coins( resting_price + price_drop_per_period, NATIVE_DENOM),
+        &coins( 11421053 , NATIVE_DENOM),
     );
     if let Err(ref e) = res {
         println!("Error: {}", e);
         assert!(res.is_ok());
     }
-    buyer_spent += resting_price + price_drop_per_period;
 
     setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_hour_nanos, 6);
     // mint at resting price
@@ -1292,11 +1277,11 @@ fn happy_path_dutch_auction() {
         println!("Error: {}", e);
         assert!(res.is_ok());
     }
-    buyer_spent += resting_price;
 
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
         buyer_balances,
-        coins(INITIAL_BALANCE - buyer_spent, NATIVE_DENOM)
+        coins(INITIAL_BALANCE - 290_821_053, NATIVE_DENOM)
     );
+
 }

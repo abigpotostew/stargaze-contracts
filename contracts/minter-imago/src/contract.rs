@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, Uint256, WasmMsg};
+use cosmwasm_std::{Addr, BankMsg, Binary, coin, Coin, coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, to_binary, Uint128, WasmMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
@@ -17,7 +17,7 @@ use whitelist::msg::{
 use crate::error::ContractError;
 use crate::msg::{ConfigResponse, DutchAuctionConfig, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 use crate::state::{
-    Config,DutchAuctionConfig as DutchAuctionConfigState, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS,
+    Config, CONFIG, DutchAuctionConfig as DutchAuctionConfigState, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS,
 };
 
 pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
@@ -33,9 +33,7 @@ const PW_HOSTNAME_SUFFIX: &str = "publicworks.art";
 
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
 
-const DEFAULT_DUTCH_AUCTION_DECLINE_PERIOD_SECONDS: u64 = 300;
-const DEFAULT_DUTCH_AUCTION_DECLINE_COEFFICIENT: u64 = 850000;
-const DECLINE_COEFFICIENT_DENOMINATOR: u64 = 1000000;
+const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1000000;
 
 // governance parameters
 const MAX_TOKEN_LIMIT: u32 = 10000;
@@ -131,13 +129,13 @@ pub fn instantiate(
     let is_dutch_auction = msg.dutch_auction_config.is_some();
     let dutch_auction_config = if is_dutch_auction {
         let dutch_auction_config = validate_dutch_auction(msg.start_time, msg.unit_price.amount.u128(),
-                                                         msg.dutch_auction_config.clone().unwrap(),
+                                                          msg.dutch_auction_config.clone().unwrap(),
         );
         if dutch_auction_config.is_err() {
             return Err(dutch_auction_config.err().unwrap());
         }
         Some(dutch_auction_config.unwrap())
-    }else{
+    } else {
         None
     };
 
@@ -191,7 +189,7 @@ pub fn instantiate(
         .add_submessages(sub_msgs))
 }
 
-fn validate_dutch_auction(start_time: Timestamp,  start_price: u128, config:DutchAuctionConfig) -> Result<DutchAuctionConfigState, ContractError> {
+fn validate_dutch_auction(start_time: Timestamp, start_price: u128, config: DutchAuctionConfig) -> Result<DutchAuctionConfigState, ContractError> {
     let valid = validate_price(start_price);
     if valid.is_err() {
         return Err(valid.err().unwrap());
@@ -208,14 +206,14 @@ fn validate_dutch_auction(start_time: Timestamp,  start_price: u128, config:Dutc
         return Err(ContractError::InvalidDeclinePeriodSeconds {});
     }
 
-    if config.decline_coefficient > DEFAULT_DUTCH_AUCTION_DECLINE_COEFFICIENT {
-        return Err(ContractError::InvalidDutchAuctionDeclineCoefficient {});
+    if config.decline_decay > MAX_DUTCH_AUCTION_DECLINE_DECAY {
+        return Err(ContractError::InvalidDutchAuctionDeclineDecay {});
     }
 
-    return Ok(DutchAuctionConfigState{
+    return Ok(DutchAuctionConfigState {
         end_time: config.end_time,
         resting_unit_price: config.resting_unit_price,
-        decline_coefficient: config.decline_coefficient,
+        decline_decay: config.decline_decay,
         decline_period_seconds: config.decline_period_seconds,
     });
 }
@@ -239,7 +237,7 @@ pub fn execute(
         }
         ExecuteMsg::BurnRemaining {} => execute_burn_remaining(deps, env, info),
         ExecuteMsg::UpdatePrice { unit_price } => execute_update_unit_price(deps, info, unit_price),
-        ExecuteMsg::UpdateDutchAuction { start_time, unit_price,dutch_auction_config } => execute_update_dutch_auction(deps, info, start_time, unit_price,dutch_auction_config),
+        ExecuteMsg::UpdateDutchAuction { start_time, unit_price, dutch_auction_config } => execute_update_dutch_auction(deps, info, start_time, unit_price, dutch_auction_config),
     }
 }
 
@@ -387,13 +385,23 @@ fn _execute_mint(
     // Exact payment only accepted
     let payment = may_pay(&info, &config.unit_price.denom)?;
 
-    if payment < mint_price.amount {
-        return Err(ContractError::IncorrectPaymentAmount(
-            coin(payment.u128(), &config.unit_price.denom),
-            mint_price,
-        ));
+    if config.dutch_auction_config.is_some() {
+        // dutch auction allows overpaying. If overpaying, refund the difference.
+        if payment < mint_price.amount {
+            return Err(ContractError::IncorrectPaymentAmount(
+                coin(payment.u128(), &config.unit_price.denom),
+                mint_price,
+            ));
+        }
+    } else {
+        //exact payment only accepted for regular sale pricing auction
+        if payment != mint_price.amount {
+            return Err(ContractError::IncorrectPaymentAmount(
+                coin(payment.u128(), &config.unit_price.denom),
+                mint_price,
+            ));
+        }
     }
-
 
     let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
 
@@ -415,7 +423,7 @@ fn _execute_mint(
         Uint128::from(0u128)
     };
 
-    // Create refund fee msg if the sender overpaid.
+    // Create refund fee msg if the sender overpaid for auction.
     if payment > mint_price.amount {
         let sender = deps.api.addr_validate(&info.sender.to_string())?;
         msgs.append(&mut refund_fee_msg((payment - mint_price.amount).u128(), sender));
@@ -670,7 +678,7 @@ pub fn execute_update_dutch_auction(
     }
     config.start_time = start_time;
     config.unit_price = coin(unit_price, config.unit_price.clone().denom);
-    config.dutch_auction_config= Some(dutch_auction_config.unwrap());
+    config.dutch_auction_config = Some(dutch_auction_config.unwrap());
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
@@ -691,12 +699,12 @@ pub fn mint_price(deps: Deps, env: Env, is_admin: bool) -> Result<Coin, StdError
 
     if config.whitelist.is_none() {
         if config.dutch_auction_config.is_some() {
-            let da_config=config.dutch_auction_config.unwrap();
+            let da_config = config.dutch_auction_config.unwrap();
             let end_time = da_config.end_time;
             let resting_unit_price = da_config.resting_unit_price;
-            let coefficient = da_config.decline_coefficient;
-            let dutch_auction_decline_period_seconds =da_config.decline_period_seconds;
-            let b = (coefficient as f64) / (DECLINE_COEFFICIENT_DENOMINATOR as f64);
+            let decay = da_config.decline_decay;
+            let dutch_auction_decline_period_seconds = da_config.decline_period_seconds;
+            let b = (decay as f64) / (MAX_DUTCH_AUCTION_DECLINE_DECAY as f64);
 
             let da_price = declining_dutch_auction(
                 config.start_time.seconds(),
@@ -822,9 +830,9 @@ fn query_mint_price(deps: Deps, env: Env) -> StdResult<MintPriceResponse> {
         current_price,
         public_price,
         whitelist_price,
-        auction_next_price_timestamp:Some(auction_next_price_timestamp),
-        auction_end_time:Some(auction_end_time),
-        auction_rest_price:Some(auction_rest_price),
+        auction_next_price_timestamp: Some(auction_next_price_timestamp),
+        auction_end_time: Some(auction_end_time),
+        auction_rest_price: Some(auction_rest_price),
     })
 }
 
@@ -848,76 +856,6 @@ pub fn dutch_auction_linear_next_price_change_timestamp(
     time_at_next_bucket
 }
 
-pub fn dutch_auction_price_linear_decline(
-    start_time_seconds: u64,
-    end_time_seconds: u64,
-    start_price: Uint128,
-    end_price: Uint128,
-    current_time_seconds: u64,
-) -> Uint128 {
-    if current_time_seconds <= start_time_seconds {
-        return start_price;
-    }
-    if current_time_seconds >= end_time_seconds {
-        return end_price;
-    }
-    let duration = end_time_seconds - start_time_seconds;
-    let five_min_buckets = duration / 300;
-    let current_bucket = (current_time_seconds - start_time_seconds) / 300;
-
-    let price_diff = start_price - end_price;
-    let price_diff_per_bucket = price_diff.u128() / five_min_buckets as u128;
-    let current_price = start_price.u128() - (price_diff_per_bucket * current_bucket as u128);
-
-    Uint128::from(current_price)
-}
-
-pub fn discrete_gda(
-    quantity_tokens: u64,
-    num_tokens: u64,//current token id
-    start_time_seconds: u64,
-    end_time_seconds: u64,
-    start_price: Uint128,
-    end_price: Uint128,
-    current_time_seconds: u64,
-) -> Uint128 {
-    //https://github.com/FrankieIsLost/gradual-dutch-auction/blob/master/src/DiscreteGDA.sol
-    let quantity = quantity_tokens as u32;
-    let num_sold = num_tokens as u32;
-    let time_since_start = current_time_seconds - start_time_seconds;
-
-    // 1_000_000
-
-    let base_token_precision: f64 = 1_000_000.0;
-    //
-    // let scale_factor:i128 = base_token_precision * 11 / 10;
-    // let decay_constant:i128 = base_token_precision / 2;
-    //
-    // let num1:i128 = (start_price.u128() as i128) * (scale_factor.pow(num_sold ));
-    // let num2:i128 = scale_factor.pow(quantity ) - base_token_precision;
-    // let den1:i128 = (decay_constant*(time_since_start as i128)).exp();
-    // let den2 :i128= scale_factor - base_token_precision;
-
-    let scale_factor = 11f64 / 10f64;
-    let decay_constant = 0.5f64;
-
-    let price_diff = ((start_price - end_price).u128() as f64) / base_token_precision;
-    let price = (start_price.u128() as f64) / base_token_precision;
-    let end_price_f = (end_price.u128() as f64) / base_token_precision;
-    let num1 = (scale_factor.powf(num_sold as f64));
-    let num2 = scale_factor.powf(quantity as f64) - 1.0;
-    let den1 = (decay_constant * (time_since_start as f64)).exp();
-    let den2 = scale_factor - 1.0;
-
-    let total_cost_float = (num1 * num2 / (den1 * den2));
-    let total_cost = (price_diff * total_cost_float + end_price_f) * base_token_precision;
-    //total cost is already in terms of wei so no need to scale down before
-    //conversion to uint. This is due to the fact that the original formula gives
-    //price in terms of ether but we scale up by 10^18 during computation
-    //in order to do fixed point math.
-    return Uint128::from(total_cost as u128);
-}
-
 // Using Christophe Schlick’s formula
 pub fn declining_dutch_auction(
     start_time_seconds: u64,
@@ -925,10 +863,10 @@ pub fn declining_dutch_auction(
     start_price: Uint128,
     end_price: Uint128,
     current_time_seconds: u64,
-    coefficient: f64,
+    decay: f64,
     decline_period_seconds: u64,
 ) -> Uint128 {
-    if coefficient < 0.0 || coefficient > 1.0 {
+    if decay < 0.0 || decay > 1.0 {
         panic!("b must be between 0 and 1");
     }
     if current_time_seconds <= start_time_seconds {
@@ -939,15 +877,14 @@ pub fn declining_dutch_auction(
     }
 
     let duration = end_time_seconds - start_time_seconds;
-    let five_min_buckets = duration / decline_period_seconds;
     let current_bucket = (current_time_seconds - start_time_seconds) / decline_period_seconds;
     let current_time_bucket = start_time_seconds + current_bucket * decline_period_seconds;
 
     let t = ((current_time_bucket - start_time_seconds) as f64) / (duration as f64);
-    let ft = 1.0 - t / ((1.0 / coefficient - 2.0) * (1.0 - t) + 1.0);
+    let ft = 1.0 - t / ((1.0 / decay - 2.0) * (1.0 - t) + 1.0);
 
     let price_diff = (start_price - end_price).u128() as f64;
-    let price = ((ft * price_diff + end_price.u128() as f64)).round() as u128;
+    let price = (ft * price_diff + end_price.u128() as f64).round() as u128;
     return Uint128::from(price);
 }
 
