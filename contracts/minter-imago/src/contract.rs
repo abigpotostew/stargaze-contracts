@@ -33,7 +33,7 @@ const PW_HOSTNAME_SUFFIX: &str = "publicworks.art";
 
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
 
-const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1000000;
+const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1_000_000_000_000_000_000;
 
 // governance parameters
 const MAX_TOKEN_LIMIT: u32 = 10000;
@@ -886,6 +886,51 @@ pub fn declining_dutch_auction(
     let price_diff = (start_price - end_price).u128() as f64;
     let price = (ft * price_diff + end_price.u128() as f64).round() as u128;
     return Uint128::from(price);
+}
+
+
+pub fn declining_dutch_auction_int(
+    start_time_seconds: u64,
+    end_time_seconds: u64,
+    start_price: Uint128,
+    end_price: Uint128,
+    current_time_seconds: u64,
+    decay: u64,
+    decline_period_seconds: u64,
+) -> Uint128 {
+    if decay > MAX_DUTCH_AUCTION_DECLINE_DECAY {
+        panic!("b must be between 0 and 1");
+    }
+    if current_time_seconds <= start_time_seconds {
+        return start_price;
+    }
+    if current_time_seconds >= end_time_seconds {
+        return end_price;
+    }
+
+    let precision:u64 = 1_000_000_000_000_000_000;
+    let precisionu128:u128 = precision as u128;
+    let precision6u128:u128 = MAX_DUTCH_AUCTION_DECLINE_DECAY as u128;
+    let decayu128:u128 = (decay as u128);
+
+    let duration = ((end_time_seconds - start_time_seconds) as u128);
+    let current_bucket = ((current_time_seconds - start_time_seconds) / decline_period_seconds) as u128;
+    let current_time_bucket = ((start_time_seconds as u128) + current_bucket * (decline_period_seconds as u128)) as u128;
+
+
+    let t_num = (current_time_bucket - (start_time_seconds as u128)) * precisionu128;
+    let t = t_num / duration; // decimal in precision
+    let decay_numerator = precisionu128;//* 10u128.pow(6);
+    // this is still the problem. I up the precision to get more decimal places. Is this subtracting correct?
+    // Then properly accounting for this precision change later in the calc.
+    let denom1p6:i128 = ((decay_numerator / decayu128) as i128) - 2i128*(precision6u128 as i128);
+    let denom2p6:i128 = ((precisionu128 - t) as i128) / (10u128.pow(6) as i128);
+    let denomc = denom1p6 * denom2p6;
+    let ft = ((precisionu128 as i128) - (t as i128) / ((denomc + 1i128))) as u128;
+
+    let price_diff = (start_price - end_price).u128()  ;
+    let price = (ft * price_diff + end_price.u128()*precisionu128 ) as u128;
+    return Uint128::from(price/precision6u128);
 }
 
 

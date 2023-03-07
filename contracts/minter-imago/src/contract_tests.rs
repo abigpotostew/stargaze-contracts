@@ -5,11 +5,13 @@ use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw_multi_test::{BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use sg_multi_test::StargazeApp;
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
+use hex_literal::hex;
+use sha2::{Sha256, Digest};
 
 use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
 use sg721_imago::state::CollectionInfo;
 
-use crate::contract::{declining_dutch_auction,  dutch_auction_linear_next_price_change_timestamp, instantiate};
+use crate::contract::{declining_dutch_auction, declining_dutch_auction_int, dutch_auction_linear_next_price_change_timestamp, instantiate};
 use crate::msg::{ConfigResponse, DutchAuctionConfig, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 
 const CREATION_FEE: u128 = 1_000_000_000;
@@ -715,6 +717,143 @@ fn dutch_auction_decline_linear() {
         end
     );
 }
+//500000000000000000
+//1000000000000000000-500000000000000000
+//1000000000000000000/500000000000000000
+#[test]
+fn dutch_auction_decline_linear_int() {
+    let start = Timestamp::from_seconds(167540000).seconds();
+    let end = Timestamp::from_seconds(start + 7 * 24 * 60 * 60).seconds();
+
+    let start_price = Uint128::from(100000000000u128);
+    let end_price = Uint128::from(1000000000u128);
+
+    let auction_duration = end - start;
+    let five_minutes_seconds = 5 * 60;
+    let price_diff = start_price.u128() - end_price.u128();
+    let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds) + 1;
+
+    // linear decay
+    const DECAY: u64 = 500_000; //0.5 decay, out of 1mm
+
+    const DECLINE_PERIOD: u64 = 300;
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    //after it ends, it stays at resting price
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD),
+        end_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD),
+        end_price
+    );
+
+    // during declining period price gradually decreases linearly
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + DECLINE_PERIOD, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period * 2)
+    );
+
+}
+
+#[test]
+fn dutch_auction_decline_exp_int() {
+    let start = Timestamp::from_seconds(167540000).seconds();
+    let end = Timestamp::from_seconds(start + 60 * 30).seconds();
+
+    let start_price = Uint128::from(100000000000u128);
+    let end_price = Uint128::from(1000000000u128);
+
+
+    const DECAY: u64 = 850_000; //0.85 decay, out of 1mm
+    const DECLINE_PERIOD_SECONDS: u64 = 300;
+
+    //before it starts
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    //after it ends, it stays at resting price
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD_SECONDS),
+        end_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD_SECONDS),
+        end_price
+    );
+
+    // during declining period price gradually decreases linearly
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + DECLINE_PERIOD_SECONDS, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(47406250000u128)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(47406250000u128)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(26826086957u128)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 900, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(15850000000u128)
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 1200, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(9027027027u128)
+
+    );
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 1500, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(4375000000u128)
+    );
+
+    assert_eq!(
+        declining_dutch_auction_int(start, end, start_price, end_price, start + 1800, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(1000000000u128)
+    );
+
+    // 1000000000000000000/850000000000000000
+    // 850000000000000000
+    // 1000000000000000000000000/850000000000000000
+    // 1176470588233294117
+    // 1000000000000000000000000-1000000000000000000
+    // 1176468588235 * 1000000
+    // 1176468588235000000
+    // 1000000000000000000
+    // 1999998000000
+}
+
+
 
 #[test]
 fn dutch_auction_decline_exp() {
@@ -1284,4 +1423,23 @@ fn happy_path_dutch_auction() {
         coins(INITIAL_BALANCE - 290_821_053, NATIVE_DENOM)
     );
 
+}
+
+
+#[test]
+fn sha256hash() {
+    let mut hasher = Sha256::new();
+    hasher.update(b"stars107h5lh00zzdp8yqpdc3x8vtnaufh4ts5uay8x4vjyws9xzhrm3ysaw34as:2");
+    let result = hasher.finalize();
+    let hash = tokenHash("stars107h5lh00zzdp8yqpdc3x8vtnaufh4ts5uay8x4vjyws9xzhrm3ysaw34as".to_string(),"2".to_string());
+    assert_eq!(result[..], hex!("
+    8d3032dfe37a30774f5c692c6b3fa6017ceb90019e34519be2d34ab5421c795f
+")[..]);
+    assert_eq!(format!("{:X}",result), hash);
+
+}
+fn tokenHash(address :String, token_id: String) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(format!("{}:{}", address.to_string(), token_id.to_string()).as_bytes());
+    return format!("{:X}", hasher.finalize())
 }

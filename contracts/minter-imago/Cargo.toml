@@ -58,7 +58,7 @@ whitelist = { path = "../whitelist", features = ["library"] }
 cw721 = "0.13.4"
 cw721-base = { version = "0.13.4", features = ["library"] }
 semver = "1"
-
+sha2 = "0.10.6"
 
 
 [dev-dependencies]
@@ -66,3 +66,5 @@ cosmwasm-schema = { version = "1.0.0" }
 sg-multi-test = "0.12.0"
 cw-multi-test = "0.13.4"
 libmath = "0.2.1"
+hex-literal = "0.3.4"
+
