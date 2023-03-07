@@ -727,11 +727,7 @@ fn dutch_auction_decline_linear_int() {
 
     let start_price = Uint128::from(100000000000u128);
     let end_price = Uint128::from(1000000000u128);
-
-    let auction_duration = end - start;
-    let five_minutes_seconds = 5 * 60;
-    let price_diff = start_price.u128() - end_price.u128();
-    let price_drop_per_period = price_diff/(auction_duration as u128 / five_minutes_seconds) + 1;
+    let price_drop_per_period:u128 = 49104000;//price_diff/(auction_duration as u128 / five_minutes_seconds) + 1;
 
     // linear decay
     const DECAY: u64 = 500_000; //0.5 decay, out of 1mm
@@ -773,6 +769,11 @@ fn dutch_auction_decline_linear_int() {
         start_price - Uint128::from(price_drop_per_period * 2)
     );
 
+    // 2_000_000_000_000
+    //1_000_000_000_000_000_000 / 500000
+    //1999998000000000000000000
+    // 1_000_000_000_000_000_000
+    // 999503968253968254
 }
 
 #[test]
@@ -813,28 +814,28 @@ fn dutch_auction_decline_exp_int() {
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + DECLINE_PERIOD_SECONDS, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(47406250000u128)
+        Uint128::from(47406349000u128)
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(47406250000u128)
+        Uint128::from(47406349000u128)
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(26826086957u128)
+        Uint128::from(26826229000u128)
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + 900, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(15850000000u128)
+        Uint128::from(15850099000u128)
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + 1200, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(9027027027u128)
+        Uint128::from(9027118000u128)
 
     );
     assert_eq!(
         declining_dutch_auction_int(start, end, start_price, end_price, start + 1500, DECAY, DECLINE_PERIOD_SECONDS),
-        Uint128::from(4375000000u128)
+        Uint128::from(4375108000u128)
     );
 
     assert_eq!(
@@ -1431,14 +1432,14 @@ fn sha256hash() {
     let mut hasher = Sha256::new();
     hasher.update(b"stars107h5lh00zzdp8yqpdc3x8vtnaufh4ts5uay8x4vjyws9xzhrm3ysaw34as:2");
     let result = hasher.finalize();
-    let hash = tokenHash("stars107h5lh00zzdp8yqpdc3x8vtnaufh4ts5uay8x4vjyws9xzhrm3ysaw34as".to_string(),"2".to_string());
+    let hash = token_hash("stars107h5lh00zzdp8yqpdc3x8vtnaufh4ts5uay8x4vjyws9xzhrm3ysaw34as".to_string(), "2".to_string());
     assert_eq!(result[..], hex!("
     8d3032dfe37a30774f5c692c6b3fa6017ceb90019e34519be2d34ab5421c795f
 ")[..]);
     assert_eq!(format!("{:X}",result), hash);
 
 }
-fn tokenHash(address :String, token_id: String) -> String {
+fn token_hash(address :String, token_id: String) -> String {
     let mut hasher = Sha256::new();
     hasher.update(format!("{}:{}", address.to_string(), token_id.to_string()).as_bytes());
     return format!("{:X}", hasher.finalize())

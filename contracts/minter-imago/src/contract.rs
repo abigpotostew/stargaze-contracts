@@ -33,7 +33,7 @@ const PW_HOSTNAME_SUFFIX: &str = "publicworks.art";
 
 const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
 
-const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1_000_000_000_000_000_000;
+const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1_000_000;
 
 // governance parameters
 const MAX_TOKEN_LIMIT: u32 = 10000;
@@ -899,7 +899,7 @@ pub fn declining_dutch_auction_int(
     decline_period_seconds: u64,
 ) -> Uint128 {
     if decay > MAX_DUTCH_AUCTION_DECLINE_DECAY {
-        panic!("b must be between 0 and 1");
+        panic!("b must be between 0 and 1 as an integer with 6 decimal places");
     }
     if current_time_seconds <= start_time_seconds {
         return start_price;
@@ -908,29 +908,35 @@ pub fn declining_dutch_auction_int(
         return end_price;
     }
 
-    let precision:u64 = 1_000_000_000_000_000_000;
-    let precisionu128:u128 = precision as u128;
-    let precision6u128:u128 = MAX_DUTCH_AUCTION_DECLINE_DECAY as u128;
-    let decayu128:u128 = (decay as u128);
+    let precision_18dp: u64 = 1_000_000_000_000_000_000;
+    let precision_18dp_u128: u128 = precision_18dp as u128;
+    let precision_6dp_u128: u128 = MAX_DUTCH_AUCTION_DECLINE_DECAY as u128;
+    let decay_6dp_u128: u128 = decay as u128;
 
-    let duration = ((end_time_seconds - start_time_seconds) as u128);
+    let duration = (end_time_seconds - start_time_seconds) as u128;
     let current_bucket = ((current_time_seconds - start_time_seconds) / decline_period_seconds) as u128;
     let current_time_bucket = ((start_time_seconds as u128) + current_bucket * (decline_period_seconds as u128)) as u128;
 
+    // the following code is a translation of Christophe Schlick’s falloff formula
+    // f(x) = x / ((1 / b - 2) * (1 - x) + 1)
+    // where b is the decay rate [0..1] and x is the time [0..1]
+    // since this needs to divide a normalized float by a normalized float, we use 18dp for the
+    // highest precision, 6 for the lowest (decay), and 12 for the intermediate
+    // calculations (1/decay). Final output is rounded to 6 decimal places.
+    let time_18dp = (current_time_bucket - (start_time_seconds as u128)) * precision_18dp_u128;
+    let time_normalized_18dp = time_18dp / duration; // decimal in precision
+    let decay_numerator_18dp = precision_18dp_u128;
+    let two_12dp = 2i128 * (10i128.pow(12));
+    let comp1_of_denom1_12dp = (decay_numerator_18dp / decay_6dp_u128) as i128;
+    // can be negative
+    let denom1_12dp: i128 = comp1_of_denom1_12dp - two_12dp;
+    let denom2p6: i128 = ((precision_18dp_u128 - time_normalized_18dp) as i128) / (10u128.pow(12) as i128);
+    let denomc_12dp = (denom1_12dp * denom2p6) / 10i128.pow(6);
+    let ft_6dp = ((precision_6dp_u128 as i128) - (time_normalized_18dp as i128) / (denomc_12dp + 10i128.pow(12))) as u128;
 
-    let t_num = (current_time_bucket - (start_time_seconds as u128)) * precisionu128;
-    let t = t_num / duration; // decimal in precision
-    let decay_numerator = precisionu128;//* 10u128.pow(6);
-    // this is still the problem. I up the precision to get more decimal places. Is this subtracting correct?
-    // Then properly accounting for this precision change later in the calc.
-    let denom1p6:i128 = ((decay_numerator / decayu128) as i128) - 2i128*(precision6u128 as i128);
-    let denom2p6:i128 = ((precisionu128 - t) as i128) / (10u128.pow(6) as i128);
-    let denomc = denom1p6 * denom2p6;
-    let ft = ((precisionu128 as i128) - (t as i128) / ((denomc + 1i128))) as u128;
-
-    let price_diff = (start_price - end_price).u128()  ;
-    let price = (ft * price_diff + end_price.u128()*precisionu128 ) as u128;
-    return Uint128::from(price/precision6u128);
+    let price_diff = (start_price - end_price).u128();
+    let price = (ft_6dp * price_diff + end_price.u128() * precision_6dp_u128) as u128;
+    return Uint128::from(price / precision_6dp_u128);
 }
 
 
