@@ -632,7 +632,7 @@ fn validate_price(price: u128) -> Result<(), ContractError> {
 pub fn execute_update_unit_price(
     deps: DepsMut,
     info: MessageInfo,
-    price: u128,
+    price: Coin,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -641,27 +641,26 @@ pub fn execute_update_unit_price(
             "Sender is not an admin".to_owned(),
         ));
     }
-    let valid = validate_price(price);
+    let valid = validate_price(price.amount.u128());
     if valid.is_err() {
         return Err(valid.err().unwrap());
     }
 
-
     //update the unit price and remove dutch auction settings
-    config.unit_price = coin(price, config.unit_price.denom);
+    config.unit_price = price.clone();
     config.dutch_auction_config = None;
-
     CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::new()
         .add_attribute("action", "update_unit_price")
         .add_attribute("sender", info.sender)
-        .add_attribute("unit_price", price.to_string()))
+        .add_attribute("unit_price", price.clone().to_string()))
 }
 
 pub fn execute_update_dutch_auction(
     deps: DepsMut,
     info: MessageInfo,
-    start_time: Timestamp, unit_price: u128,
+    start_time: Timestamp, unit_price: Coin,
     dutch_auction_config: DutchAuctionConfig,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
@@ -672,17 +671,17 @@ pub fn execute_update_dutch_auction(
         ));
     }
 
-    let dutch_auction_config = validate_dutch_auction(start_time, unit_price, dutch_auction_config);
+    let dutch_auction_config = validate_dutch_auction(start_time, unit_price.amount.u128(), dutch_auction_config);
     if dutch_auction_config.is_err() {
         return Err(dutch_auction_config.err().unwrap());
     }
     config.start_time = start_time;
-    config.unit_price = coin(unit_price, config.unit_price.clone().denom);
+    config.unit_price = unit_price.clone();
     config.dutch_auction_config = Some(dutch_auction_config.unwrap());
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
-        .add_attribute("action", "update_unit_price")
+        .add_attribute("action", "update_dutch_auction")
         .add_attribute("sender", info.sender)
         .add_attribute("unit_price", unit_price.to_string()))
 }
@@ -704,15 +703,14 @@ pub fn mint_price(deps: Deps, env: Env, is_admin: bool) -> Result<Coin, StdError
             let resting_unit_price = da_config.resting_unit_price;
             let decay = da_config.decline_decay;
             let dutch_auction_decline_period_seconds = da_config.decline_period_seconds;
-            let b = (decay as f64) / (MAX_DUTCH_AUCTION_DECLINE_DECAY as f64);
 
-            let da_price = declining_dutch_auction(
+            let da_price = dutch_auction_price_at_time(
                 config.start_time.seconds(),
                 end_time.seconds(),
                 config.unit_price.amount,
                 resting_unit_price.amount,
                 env.block.time.seconds(),
-                b,
+                decay,
                 dutch_auction_decline_period_seconds,
             );
 
@@ -742,7 +740,6 @@ fn mint_count(deps: Deps, info: &MessageInfo) -> Result<u32, StdError> {
     Ok(mint_count)
 }
 
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -751,7 +748,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MintableNumTokens {} => to_binary(&query_mintable_num_tokens(deps)?),
         QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps, _env)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
-        // QueryMsg::DutchAuctionInfo {} => to_binary(&query_dutch_auction_info(deps, _env)?),
     }
 }
 
@@ -759,6 +755,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let sg721_address = SG721_ADDRESS.load(deps.storage)?;
+
+    let dutch_auction_config = config.dutch_auction_config.map(|da_config| {
+        DutchAuctionConfig {
+            end_time: da_config.end_time,
+            resting_unit_price: da_config.resting_unit_price,
+            decline_decay: da_config.decline_decay,
+            decline_period_seconds: da_config.decline_period_seconds,
+        }
+    });
 
     Ok(ConfigResponse {
         admin: config.admin.to_string(),
@@ -770,6 +775,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         unit_price: config.unit_price,
         per_address_limit: config.per_address_limit,
         whitelist: config.whitelist.map(|w| w.to_string()),
+        dutch_auction_config,
     })
 }
 
@@ -848,7 +854,6 @@ pub fn dutch_auction_linear_next_price_change_timestamp(
     if current_time >= end_time {
         return end_time;
     }
-    //tod use the buckets!
     let current_bucket = (current_time - start_time) / decline_period;
     let next_bucket = current_bucket + 1;
     let time_at_next_bucket = start_time + (next_bucket * decline_period);
@@ -889,7 +894,7 @@ pub fn declining_dutch_auction(
 }
 
 
-pub fn declining_dutch_auction_int(
+pub fn dutch_auction_price_at_time(
     start_time_seconds: u64,
     end_time_seconds: u64,
     start_price: Uint128,
@@ -911,6 +916,7 @@ pub fn declining_dutch_auction_int(
     let precision_18dp: u64 = 1_000_000_000_000_000_000;
     let precision_18dp_u128: u128 = precision_18dp as u128;
     let precision_6dp_u128: u128 = MAX_DUTCH_AUCTION_DECLINE_DECAY as u128;
+    let coin_precision: u128 = 1_000_000 as u128;
     let decay_6dp_u128: u128 = decay as u128;
 
     let duration = (end_time_seconds - start_time_seconds) as u128;
@@ -930,13 +936,19 @@ pub fn declining_dutch_auction_int(
     let comp1_of_denom1_12dp = (decay_numerator_18dp / decay_6dp_u128) as i128;
     // can be negative
     let denom1_12dp: i128 = comp1_of_denom1_12dp - two_12dp;
-    let denom2p6: i128 = ((precision_18dp_u128 - time_normalized_18dp) as i128) / (10u128.pow(12) as i128);
-    let denomc_12dp = (denom1_12dp * denom2p6) / 10i128.pow(6);
+    let denom2_6dp: i128 = ((precision_18dp_u128 - time_normalized_18dp) as i128) / (10u128.pow(12) as i128);
+    let denomc_12dp = (denom1_12dp * denom2_6dp) / 10i128.pow(6);
     let ft_6dp = ((precision_6dp_u128 as i128) - (time_normalized_18dp as i128) / (denomc_12dp + 10i128.pow(12))) as u128;
 
     let price_diff = (start_price - end_price).u128();
     let price = (ft_6dp * price_diff + end_price.u128() * precision_6dp_u128) as u128;
-    return Uint128::from(price / precision_6dp_u128);
+    let price_in_coin_precision = price / precision_6dp_u128;
+    let price_floored = price_in_coin_precision / coin_precision * coin_precision;
+    let price_remainder = price_in_coin_precision % coin_precision;
+    if price_remainder >= coin_precision / 2 {
+        return Uint128::from(price_floored + coin_precision);
+    }
+    return Uint128::from(price_floored);
 }
 
 

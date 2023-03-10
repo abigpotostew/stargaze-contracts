@@ -34,8 +34,8 @@ pub enum ExecuteMsg {
     UpdatePerAddressLimit { per_address_limit: u32 },
     MintTo { recipient: String },
     BurnRemaining {},
-    UpdatePrice { unit_price: u128 },
-    UpdateDutchAuction { dutch_auction_config:DutchAuctionConfig, unit_price:u128, start_time:Timestamp},
+    UpdatePrice { unit_price: Coin },
+    UpdateDutchAuction { dutch_auction_config:DutchAuctionConfig, unit_price:Coin, start_time:Timestamp},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,6 +49,7 @@ pub enum QueryMsg {
     // DutchAuctionInfo {},
 }
 
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub admin: String,
@@ -60,6 +61,7 @@ pub struct ConfigResponse {
     pub start_time: Timestamp,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -88,3 +90,6 @@ pub struct MintCountResponse {
     pub address: String,
     pub count: u32,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
