@@ -80,9 +80,14 @@ pub struct MintPriceResponse {
     pub whitelist_price: Option<Coin>,
     pub current_price: Coin,
 
-    pub auction_rest_price: Option<Coin>,
-    pub auction_end_time: Option<String>,
-    pub auction_next_price_timestamp: Option<String>,
+    pub dutch_auction_price: Option<DutchAuctionPriceResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionPriceResponse {
+    pub rest_price: Coin,
+    pub end_time: String,
+    pub next_price_timestamp: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

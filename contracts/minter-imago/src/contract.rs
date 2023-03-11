@@ -15,7 +15,7 @@ use whitelist::msg::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ConfigResponse, DutchAuctionConfig, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
+use crate::msg::{ConfigResponse, DutchAuctionConfig, DutchAuctionPriceResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 use crate::state::{
     Config, CONFIG, DutchAuctionConfig as DutchAuctionConfigState, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS,
 };
@@ -686,8 +686,29 @@ pub fn execute_update_dutch_auction(
         .add_attribute("unit_price", unit_price.to_string()))
 }
 
+fn dutch_auction_price_response(env: Env, config: Config) -> Coin {
+    let da_config = config.dutch_auction_config.unwrap();
+    let end_time = da_config.end_time;
+    let resting_unit_price = da_config.resting_unit_price;
+    let decay = da_config.decline_decay;
+    let dutch_auction_decline_period_seconds = da_config.decline_period_seconds;
+
+    let da_price = dutch_auction_price_at_time(
+        config.start_time.seconds(),
+        end_time.seconds(),
+        config.unit_price.amount,
+        resting_unit_price.amount,
+        env.block.time.seconds(),
+        decay,
+        dutch_auction_decline_period_seconds,
+    );
+
+    return coin(da_price.u128(), config.unit_price.denom);
+}
+
 // if admin_no_fee => no fee,
 // else if in whitelist => whitelist price
+// else if dutch auction => dutch auction price
 // else => config unit price
 pub fn mint_price(deps: Deps, env: Env, is_admin: bool) -> Result<Coin, StdError> {
     let config = CONFIG.load(deps.storage)?;
@@ -696,37 +717,20 @@ pub fn mint_price(deps: Deps, env: Env, is_admin: bool) -> Result<Coin, StdError
         return Ok(coin(AIRDROP_MINT_PRICE, config.unit_price.denom));
     }
 
-    if config.whitelist.is_none() {
-        if config.dutch_auction_config.is_some() {
-            let da_config = config.dutch_auction_config.unwrap();
-            let end_time = da_config.end_time;
-            let resting_unit_price = da_config.resting_unit_price;
-            let decay = da_config.decline_decay;
-            let dutch_auction_decline_period_seconds = da_config.decline_period_seconds;
+    if config.whitelist.is_some() {
+        let whitelist = config.whitelist.clone().unwrap();
 
-            let da_price = dutch_auction_price_at_time(
-                config.start_time.seconds(),
-                end_time.seconds(),
-                config.unit_price.amount,
-                resting_unit_price.amount,
-                env.block.time.seconds(),
-                decay,
-                dutch_auction_decline_period_seconds,
-            );
+        let wl_config: WhitelistConfigResponse = deps
+            .querier
+            .query_wasm_smart(whitelist, &WhitelistQueryMsg::Config {})?;
 
-            return Ok(coin(da_price.u128(), config.unit_price.denom));
+        if wl_config.is_active {
+            return Ok(wl_config.unit_price);
         }
-        return Ok(config.unit_price);
     }
 
-    let whitelist = config.whitelist.unwrap();
-
-    let wl_config: WhitelistConfigResponse = deps
-        .querier
-        .query_wasm_smart(whitelist, &WhitelistQueryMsg::Config {})?;
-
-    if wl_config.is_active {
-        Ok(wl_config.unit_price)
+    return if config.dutch_auction_config.is_some() {
+        Ok(dutch_auction_price_response(env, config.clone()))
     } else {
         Ok(config.unit_price)
     }
@@ -817,32 +821,34 @@ fn query_mint_price(deps: Deps, env: Env) -> StdResult<MintPriceResponse> {
             current_price,
             public_price,
             whitelist_price,
-            auction_next_price_timestamp: None,
-            auction_end_time: None,
-            auction_rest_price: None,
+            dutch_auction_price: None,
         });
     }
     let dutch_auction_config = config.dutch_auction_config.unwrap();
     let auction_rest_price = dutch_auction_config.resting_unit_price;
     let auction_end_time = dutch_auction_config.end_time.nanos().to_string();
-    let auction_next_price_timestamp = Timestamp::from_seconds(dutch_auction_linear_next_price_change_timestamp(
+    let auction_next_price_timestamp = Timestamp::from_seconds(dutch_auction_next_price_change_timestamp(
         config.start_time.seconds(),
         dutch_auction_config.end_time.seconds(),
         env.block.time.seconds(),
         dutch_auction_config.decline_period_seconds,
     )).nanos().to_string();
 
+    let dutch_auction_price = DutchAuctionPriceResponse{
+        next_price_timestamp: auction_next_price_timestamp,
+        end_time: auction_end_time,
+        rest_price: auction_rest_price,
+    };
+
     Ok(MintPriceResponse {
         current_price,
         public_price,
         whitelist_price,
-        auction_next_price_timestamp: Some(auction_next_price_timestamp),
-        auction_end_time: Some(auction_end_time),
-        auction_rest_price: Some(auction_rest_price),
+        dutch_auction_price: Some(dutch_auction_price),
     })
 }
 
-pub fn dutch_auction_linear_next_price_change_timestamp(
+pub fn dutch_auction_next_price_change_timestamp(
     start_time: u64,
     end_time: u64,
     current_time: u64,
@@ -859,38 +865,6 @@ pub fn dutch_auction_linear_next_price_change_timestamp(
     let time_at_next_bucket = start_time + (next_bucket * decline_period);
 
     time_at_next_bucket
-}
-
-// Using Christophe Schlick’s formula
-pub fn declining_dutch_auction(
-    start_time_seconds: u64,
-    end_time_seconds: u64,
-    start_price: Uint128,
-    end_price: Uint128,
-    current_time_seconds: u64,
-    decay: f64,
-    decline_period_seconds: u64,
-) -> Uint128 {
-    if decay < 0.0 || decay > 1.0 {
-        panic!("b must be between 0 and 1");
-    }
-    if current_time_seconds <= start_time_seconds {
-        return start_price;
-    }
-    if current_time_seconds >= end_time_seconds {
-        return end_price;
-    }
-
-    let duration = end_time_seconds - start_time_seconds;
-    let current_bucket = (current_time_seconds - start_time_seconds) / decline_period_seconds;
-    let current_time_bucket = start_time_seconds + current_bucket * decline_period_seconds;
-
-    let t = ((current_time_bucket - start_time_seconds) as f64) / (duration as f64);
-    let ft = 1.0 - t / ((1.0 / decay - 2.0) * (1.0 - t) + 1.0);
-
-    let price_diff = (start_price - end_price).u128() as f64;
-    let price = (ft * price_diff + end_price.u128() as f64).round() as u128;
-    return Uint128::from(price);
 }
 
 
