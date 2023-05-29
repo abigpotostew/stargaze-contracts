@@ -9,7 +9,8 @@ use sg1::{checked_fair_burn, FeeError};
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
 
-use sg721_imago::msg::InstantiateMsg as Sg721InstantiateMsg;
+use sg721_imago::msg::{CollectionInfoResponse, InstantiateMsg as Sg721InstantiateMsg};
+use sg721_imago::msg::QueryMsg::CollectionInfo;
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
 };
@@ -37,8 +38,8 @@ const MAX_DUTCH_AUCTION_DECLINE_DECAY: u64 = 1_000_000;
 
 // governance parameters
 const MAX_TOKEN_LIMIT: u32 = 10000;
-const MAX_PER_ADDRESS_LIMIT: u32 = 50;
-const MIN_MINT_PRICE: u128 = 50_000_000;
+const MAX_PER_ADDRESS_LIMIT: u32 = 100;
+const MIN_MINT_PRICE: u128 = 0;
 const AIRDROP_MINT_PRICE: u128 = 15_000_000;
 const MINT_FEE_PERCENT: u32 = 10;
 // 100% airdrop fee goes to fair burn
@@ -464,10 +465,21 @@ fn _execute_mint(
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
     MINTER_ADDRS.save(deps.storage, info.clone().sender, &new_mint_count)?;
 
+    let sg721_config: CollectionInfoResponse = deps
+        .querier
+        .query_wasm_smart(sg721_address, &CollectionInfo {})?;
+
+    // payout to the royalty address if it exists for splits to work
+    let payment_address = if sg721_config.royalty_info.is_some() {
+        sg721_config.royalty_info.unwrap().payment_address
+    } else {
+        config.admin.to_string()
+    };
+
     let seller_amount = if !is_admin {
         let amount = mint_price.amount - network_fee - pw_fee;
         let msg = BankMsg::Send {
-            to_address: config.admin.to_string(),
+            to_address: payment_address,
             amount: vec![coin(amount.u128(), config.unit_price.denom)],
         };
         msgs.push(CosmosMsg::Bank(msg));
