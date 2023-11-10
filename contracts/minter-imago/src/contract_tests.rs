@@ -16,7 +16,6 @@ const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
 
 const UNIT_PRICE: u128 = 100_000_000;
-const PW_CREATE_FEE: u128 = 100_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
 const ADMIN_MINT_PRICE: u128 = 15_000_000;
 
@@ -631,8 +630,8 @@ fn happy_path() {
         .wrap()
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
-    assert_eq!(1, pw_balance_after_mint.len());
-    assert_eq!(pw_balance_after_mint[0].amount.u128(), PW_CREATE_FEE);
+    // the balances returned is empty because the dev address has no coins
+    assert_eq!(0, pw_balance_after_mint.len());
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -669,7 +668,7 @@ fn happy_path() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 88_000_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 96_000_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
@@ -744,13 +743,13 @@ fn happy_path() {
     assert_eq!(res.count, 1);
     assert_eq!(res.address, buyer.to_string());
 
-    //creator should have balance
+    // creator should have balance of mint fees
     let pw_balance_creator = router
         .wrap()
         .query_all_balances(creator.to_string())
         .unwrap();
     assert_eq!(1, pw_balance_creator.len());
-    assert_eq!(pw_balance_creator[0].amount.u128(), 2_073_000_000); //fair burn plus PW fees
+    assert_eq!(pw_balance_creator[0].amount.u128(), 2_081_000_000); // PW fees
 
     // Minter contract should not have a balance
     let minter_balance = router
@@ -765,7 +764,7 @@ fn happy_path() {
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
     assert_eq!(1, pw_balance2.len());
-    assert_eq!(pw_balance2[0].amount.u128(), 104_500_000); //fair burn plus PW fees
+    assert_eq!(pw_balance2[0].amount.u128(), 19_000_000); //PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
@@ -1008,7 +1007,7 @@ fn happy_path_dutch_auction() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 176_000_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 192_000_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
@@ -1037,7 +1036,7 @@ fn happy_path_dutch_auction() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 236_720_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 258_240_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(

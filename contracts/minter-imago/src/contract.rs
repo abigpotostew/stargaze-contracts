@@ -5,7 +5,7 @@ use cw2::set_contract_version;
 use cw721_base::{MintMsg, msg::ExecuteMsg as Cw721ExecuteMsg};
 use cw_utils::{may_pay, maybe_addr, must_pay, nonpayable, parse_reply_instantiate_data};
 use semver::Version;
-use sg1::{checked_fair_burn, FeeError};
+use sg1::{FeeError};
 use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use url::Url;
 
@@ -41,10 +41,10 @@ const MAX_TOKEN_LIMIT: u32 = 10000;
 const MAX_PER_ADDRESS_LIMIT: u32 = 100;
 const MIN_MINT_PRICE: u128 = 0;
 const AIRDROP_MINT_PRICE: u128 = 15_000_000;
-const MINT_FEE_PERCENT: u32 = 10;
-// 100% airdrop fee goes to fair burn
+// 100% airdrop fee goes to pw
 const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
-const PW_MINT_FEE_PERCENT: u64 = 2;
+// 4% mint fee goes to pw
+const PW_MINT_FEE_PERCENT: u64 = 4;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -410,27 +410,19 @@ fn _execute_mint(
     let fee_percent = if is_admin {
         Decimal::percent(AIRDROP_MINT_FEE_PERCENT as u64)
     } else {
-        Decimal::percent(MINT_FEE_PERCENT as u64)
+        Decimal::percent(PW_MINT_FEE_PERCENT as u64)
     };
-    let network_fee = mint_price.amount * fee_percent;
 
     let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()))?;
-    //only take pw fee if it's not an airdrop
-    let pw_fee = if fee_percent == Decimal::percent(MINT_FEE_PERCENT as u64) {
-        let pw_fee = mint_price.amount * Decimal::percent(PW_MINT_FEE_PERCENT);
-        msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
-        pw_fee
-    } else {
-        Uint128::from(0u128)
-    };
+
+    let pw_fee = mint_price.amount * fee_percent;
+    msgs.append(&mut pw_fee_msg(&info, pw_fee.u128(), addr.clone().unwrap())?);
 
     // Create refund fee msg if the sender overpaid for auction.
     if payment > mint_price.amount {
         let sender = deps.api.addr_validate(&info.sender.to_string())?;
         msgs.append(&mut refund_fee_msg((payment - mint_price.amount).u128(), sender));
     }
-
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128(), addr)?);
 
     let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
         .keys(deps.storage, None, None, Order::Ascending)
@@ -477,7 +469,7 @@ fn _execute_mint(
     };
 
     let seller_amount = if !is_admin {
-        let amount = mint_price.amount - network_fee - pw_fee;
+        let amount = mint_price.amount - pw_fee;
         let msg = BankMsg::Send {
             to_address: payment_address,
             amount: vec![coin(amount.u128(), config.unit_price.denom)],
@@ -493,7 +485,6 @@ fn _execute_mint(
         .add_attribute("sender", info.sender)
         .add_attribute("recipient", recipient_addr)
         .add_attribute("token_id", mintable_token_id.to_string())
-        .add_attribute("network_fee", network_fee)
         .add_attribute("pw_fee", pw_fee)
         .add_attribute("mint_price", mint_price.amount)
         .add_attribute("seller_amount", seller_amount)
