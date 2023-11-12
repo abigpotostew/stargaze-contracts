@@ -14,6 +14,15 @@ pub struct InstantiateMsg {
     pub per_address_limit: u32,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionConfig {
+    pub end_time: Timestamp,
+    pub resting_unit_price: Coin,
+    pub decline_period_seconds: u64,
+    pub decline_decay: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,6 +34,8 @@ pub enum ExecuteMsg {
     UpdatePerAddressLimit { per_address_limit: u32 },
     MintTo { recipient: String },
     BurnRemaining {},
+    UpdatePrice { unit_price: Coin },
+    UpdateDutchAuction { dutch_auction_config:DutchAuctionConfig, unit_price:Coin, start_time:Timestamp},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -35,7 +46,9 @@ pub enum QueryMsg {
     StartTime {},
     MintPrice {},
     MintCount { address: String },
+    // DutchAuctionInfo {},
 }
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -48,6 +61,7 @@ pub struct ConfigResponse {
     pub start_time: Timestamp,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -65,6 +79,15 @@ pub struct MintPriceResponse {
     pub public_price: Coin,
     pub whitelist_price: Option<Coin>,
     pub current_price: Coin,
+
+    pub dutch_auction_price: Option<DutchAuctionPriceResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionPriceResponse {
+    pub rest_price: Coin,
+    pub end_time: String,
+    pub next_price_timestamp: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -72,3 +95,6 @@ pub struct MintCountResponse {
     pub address: String,
     pub count: u32,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

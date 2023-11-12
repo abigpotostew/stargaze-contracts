@@ -9,19 +9,15 @@ use sg_std::{GENESIS_MINT_START_TIME, NATIVE_DENOM, StargazeMsgWrapper};
 use sg721_imago::msg::{CodeUriResponse, InstantiateMsg as Sg721InstantiateMsg, QueryMsg as Sg721ImagoQueryMsg, RoyaltyInfoResponse};
 use sg721_imago::state::CollectionInfo;
 
-use crate::contract::instantiate;
-use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse,
-    QueryMsg, StartTimeResponse,
-};
+use crate::contract::{dutch_auction_price_at_time, instantiate};
+use crate::msg::{ConfigResponse, DutchAuctionConfig, ExecuteMsg, InstantiateMsg, MintableNumTokensResponse, MintCountResponse, MintPriceResponse, QueryMsg, StartTimeResponse};
 
 const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2_000_000_000;
 
 const UNIT_PRICE: u128 = 100_000_000;
-const PW_CREATE_FEE: u128 = 100_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
-const ADMIN_MINT_PRICE: u128 = 15_000_000;
+const ADMIN_MINT_PRICE: u128 = 50_000_000;
 
 fn custom_mock_app() -> StargazeApp {
     StargazeApp::default()
@@ -67,6 +63,74 @@ fn setup_minter_contract(
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id,
+        dutch_auction_config: None,
+        sg721_instantiate_msg: Sg721InstantiateMsg {
+            name: String::from("TEST"),
+            symbol: String::from("TEST"),
+            minter: creator.to_string(),
+            finalizer: creator.to_string(),
+            code_uri: "ipfs://test_code_url".to_string(),
+            collection_info: CollectionInfo {
+                creator: creator.to_string(),
+                description: String::from("Stargaze Monkeys"),
+                image: "https://example.com/image.png".to_string(),
+                external_link: Some("https://example.com/external.html".to_string()),
+                royalty_info: Some(RoyaltyInfoResponse {
+                    payment_address: creator.to_string(),
+                    share: Decimal::percent(10),
+                }),
+            },
+        },
+    };
+    let minter_addr = router
+        .instantiate_contract(
+            minter_code_id,
+            // failing here
+            creator.clone(),
+            &msg,
+            &creation_fee,
+            "Minter Imago",
+            None,
+        )
+        .unwrap();
+
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    (minter_addr, config)
+}
+
+fn setup_minter_contract_dutch_auction(
+    router: &mut StargazeApp,
+    creator: &Addr,
+    num_tokens: u32,
+    end_time: u64,
+    unit_price: u128,
+    resting_unit_price: u128,
+) -> (Addr, ConfigResponse) {
+    // Upload contract code
+    let sg721_code_id = router.store_code(contract_sg721());
+    let minter_code_id = router.store_code(contract_minter());
+    let creation_fee = coins(CREATION_FEE, NATIVE_DENOM);
+
+    // Instantiate minter contract
+    let msg = InstantiateMsg {
+        unit_price: coin(unit_price, NATIVE_DENOM),
+        num_tokens,
+        start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
+        per_address_limit: 5,
+        whitelist: None,
+        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
+        sg721_code_id,
+        dutch_auction_config: Some(DutchAuctionConfig {
+            end_time: (Timestamp::from_nanos(end_time)),
+            resting_unit_price: (coin(resting_unit_price, NATIVE_DENOM)),
+            decline_period_seconds: 300,
+            decline_decay: 850000,
+        }),
+
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -151,6 +215,14 @@ fn setup_block_time(router: &mut StargazeApp, nanos: u64) {
     router.set_block(block);
 }
 
+// Set blockchain time to after mint by default
+fn setup_block_time_height(router: &mut StargazeApp, nanos: u64, height: u64) {
+    let mut block = router.block_info();
+    block.time = Timestamp::from_nanos(nanos);
+    block.height = height;
+    router.set_block(block);
+}
+
 // Deal with zero and non-zero coin amounts for msgs
 fn coins_for_msg(msg_coin: Coin) -> Vec<Coin> {
     if msg_coin.amount > Uint128::zero() {
@@ -179,6 +251,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1234".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -209,6 +282,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "a".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -239,6 +313,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "a".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -269,6 +344,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.aart/1".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -299,6 +375,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -330,36 +407,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
-        sg721_instantiate_msg: Sg721InstantiateMsg {
-            name: String::from("TEST"),
-            symbol: String::from("TEST"),
-            minter: info.sender.to_string(),
-            finalizer: info.sender.to_string(),
-            code_uri: "ipfs://test_code_url".to_string(),
-            collection_info: CollectionInfo {
-                creator: info.sender.to_string(),
-                description: String::from("Stargaze Monkeys"),
-                image: "https://example.com/image.png".to_string(),
-                external_link: Some("https://example.com/external.html".to_string()),
-                royalty_info: Some(RoyaltyInfoResponse {
-                    payment_address: info.sender.to_string(),
-                    share: Decimal::percent(10),
-                }),
-            },
-        },
-    };
-    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-
-    // Insufficient mint price returns error
-    let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
-    let msg = InstantiateMsg {
-        unit_price: coin(1, NATIVE_DENOM),
-        num_tokens: 100,
-        start_time: Timestamp::from_nanos(GENESIS_MINT_START_TIME),
-        per_address_limit: 5,
-        whitelist: None,
-        base_token_uri: "https://metadata.publicworks.art/1".to_string(),
-        sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -390,6 +438,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -420,6 +469,7 @@ fn initialization() {
         whitelist: None,
         base_token_uri: "https://metadata.publicworks.art/1".to_string(),
         sg721_code_id: 1,
+        dutch_auction_config: None,
         sg721_instantiate_msg: Sg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
@@ -440,6 +490,123 @@ fn initialization() {
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
 }
+
+#[test]
+fn dutch_auction_decline_linear_int() {
+    let start = Timestamp::from_seconds(167540000).seconds();
+    let end = Timestamp::from_seconds(start + 7 * 24 * 60 * 60).seconds();
+
+    let start_price = Uint128::from(100000000000u128);
+    let end_price = Uint128::from(1000000000u128);
+    let price_drop_per_period: u128 = 49000000;//price_diff/(auction_duration as u128 / five_minutes_seconds) + 1;
+
+    // linear decay
+    const DECAY: u64 = 500_000; //0.5 decay, out of 1mm
+
+    const DECLINE_PERIOD: u64 = 300;
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    //after it ends, it stays at resting price
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD),
+        end_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD),
+        end_price
+    );
+
+    // during declining period price gradually decreases linearly
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + DECLINE_PERIOD, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD),
+        start_price - Uint128::from(price_drop_per_period * 2)
+    );
+}
+
+#[test]
+fn dutch_auction_decline_exp_int() {
+    let start = Timestamp::from_seconds(167540000).seconds();
+    let end = Timestamp::from_seconds(start + 60 * 30).seconds();
+
+    let start_price = Uint128::from(100_000_000_000u128);
+    let end_price = Uint128::from(    1_000_000_000u128);
+
+    const DECAY: u64 = 850_000; //0.85 decay, out of 1mm
+    const DECLINE_PERIOD_SECONDS: u64 = 300;
+
+    //before it starts
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start - 1, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    //after it ends, it stays at resting price
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, end, DECAY, DECLINE_PERIOD_SECONDS),
+        end_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, end + 1000, DECAY, DECLINE_PERIOD_SECONDS),
+        end_price
+    );
+
+    // during declining period price gradually decreases linearly
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 299, DECAY, DECLINE_PERIOD_SECONDS),
+        start_price
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + DECLINE_PERIOD_SECONDS, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(47406000000u128)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 599, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(47406000000u128)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 600, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(26826000000u128)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 900, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(15850000000u128)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 1200, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(9027000000u128)
+    );
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 1500, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(4375000000u128)
+    );
+
+    assert_eq!(
+        dutch_auction_price_at_time(start, end, start_price, end_price, start + 1800, DECAY, DECLINE_PERIOD_SECONDS),
+        Uint128::from(1000000000u128)
+    );
+}
+
 
 #[test]
 fn happy_path() {
@@ -463,8 +630,8 @@ fn happy_path() {
         .wrap()
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
-    assert_eq!(1, pw_balance_after_mint.len());
-    assert_eq!(pw_balance_after_mint[0].amount.u128(), PW_CREATE_FEE);
+    // the balances returned is empty because the dev address has no coins
+    assert_eq!(0, pw_balance_after_mint.len());
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -501,7 +668,7 @@ fn happy_path() {
     // Balances are correct
     // The creator should get the unit price - mint fee for the mint above
     let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 75_000_000, NATIVE_DENOM));
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 96_000_000, NATIVE_DENOM));
     // The buyer's tokens should reduce by unit price
     let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
     assert_eq!(
@@ -576,13 +743,13 @@ fn happy_path() {
     assert_eq!(res.count, 1);
     assert_eq!(res.address, buyer.to_string());
 
-    //creator should have balance
+    // creator should have balance of mint fees
     let pw_balance_creator = router
         .wrap()
         .query_all_balances(creator.to_string())
         .unwrap();
     assert_eq!(1, pw_balance_creator.len());
-    assert_eq!(pw_balance_creator[0].amount.u128(), 2_060_000_000); //fair burn plus PW fees
+    assert_eq!(pw_balance_creator[0].amount.u128(), 2_046_000_000); // PW fees
 
     // Minter contract should not have a balance
     let minter_balance = router
@@ -597,7 +764,7 @@ fn happy_path() {
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
     assert_eq!(1, pw_balance2.len());
-    assert_eq!(pw_balance2[0].amount.u128(), 117_500_000); //fair burn plus PW fees
+    assert_eq!(pw_balance2[0].amount.u128(), 54_000_000); //PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
@@ -739,4 +906,209 @@ fn burn_remaining() {
         )
         .unwrap();
     assert_eq!(res.count, 0);
+
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(config.num_tokens, 1);
+}
+
+#[test]
+fn happy_path_dutch_auction() {
+    let mut router = custom_mock_app();
+    setup_block_time(&mut router, GENESIS_MINT_START_TIME - 1);
+    let (creator, buyer) = setup_accounts(&mut router);
+    let num_tokens = 10;
+
+    // Get dev address balance Before any actions
+    let pw_balance_before = router
+        .wrap()
+        .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
+        .unwrap();
+    assert_eq!(0, pw_balance_before.len());
+
+    let one_hour_nanos = 3600 * 1_000_000_000;
+    let end_time = GENESIS_MINT_START_TIME + one_hour_nanos;
+    let unit_price = 100_000_000u128; //100 stars
+    let resting_price = 10_000_000; // 10 stars
+
+    let (minter_addr, config_response) = setup_minter_contract_dutch_auction(&mut router, &creator, num_tokens, end_time, unit_price, resting_price);
+    assert!(config_response.dutch_auction_config.is_some());
+    let da_config = &config_response.dutch_auction_config.unwrap();
+    assert_eq!(da_config.decline_decay, 850000);
+    assert_eq!(da_config.decline_period_seconds, 300);
+    assert_eq!(da_config.end_time.nanos(), end_time);
+    assert_eq!(da_config.resting_unit_price.amount.u128(), resting_price);
+
+    // Default start time genesis mint time
+    let res: StartTimeResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::StartTime {})
+        .unwrap();
+    assert_eq!(
+        res.start_time,
+        Timestamp::from_nanos(GENESIS_MINT_START_TIME).to_string()
+    );
+
+    let one_minute_nanos = 60 * 1_000_000_000;
+    setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_minute_nanos, 2);
+
+    // Fail with incorrect tokens
+    let mint_msg = ExecuteMsg::Mint {};
+    let err = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(unit_price - 1, NATIVE_DENOM),
+    );
+    assert!(err.is_err());
+
+    // read the price parameters
+    let res: MintPriceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintPrice {},
+        )
+        .unwrap();
+    assert_eq!(res.current_price.amount.u128(), unit_price);
+    assert_eq!(res.public_price.amount.u128(), unit_price);
+    assert_eq!(u64::from_str_radix(res.clone().dutch_auction_price.unwrap().end_time.as_str(), 10).unwrap(), end_time);
+    let next_price_time = GENESIS_MINT_START_TIME + 5 * 60 * 1000 * 1000 * 1000;
+    assert_eq!(u64::from_str_radix(res.clone().dutch_auction_price.unwrap().next_price_timestamp.as_str(), 10).unwrap(), next_price_time);
+
+    // Succeeds if funds are sent
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(unit_price, NATIVE_DENOM),
+    );
+    assert!(res.is_ok());
+
+    setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_minute_nanos * 2, 3);
+
+    // Succeeds if too many funds are sent
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(unit_price + 1, NATIVE_DENOM),
+    );
+    if let Err(ref e) = res {
+        println!("Error: {}", e);
+        assert!(res.is_ok());
+    }
+
+    // Balances are correct
+    // The creator should get the unit price - mint fee for the mint above
+    let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 192_000_000, NATIVE_DENOM));
+    // The buyer's tokens should reduce by unit price
+    let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
+    assert_eq!(
+        buyer_balances,
+        coins(INITIAL_BALANCE - 200_000_000, NATIVE_DENOM)
+    );
+
+    let six_minutes_nanos = 6 * 60 * 1_000_000_000;
+    // Mint after the price has dropped
+    setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + six_minutes_nanos, 4);
+
+    // Succeeds if too many funds are sent
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(unit_price + 1, NATIVE_DENOM),
+    );
+    if let Err(ref e) = res {
+        println!("Error: {}", e);
+        assert!(res.is_ok());
+    }
+    // dutch auction price after 6 minutes
+    // buyer_spent += unit_price - price_drop_per_period;
+    // Balances are correct
+    // The creator should get the unit price - mint fee for the mint above
+    let creator_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
+    assert_eq!(creator_balances, coins(INITIAL_BALANCE + 258_240_000, NATIVE_DENOM));
+    // The buyer's tokens should reduce by unit price
+    let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
+    assert_eq!(
+        buyer_balances,
+        coins(INITIAL_BALANCE - 269000000, NATIVE_DENOM)
+    );
+    let res: MintPriceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintPrice {},
+        )
+        .unwrap();
+    assert_eq!(res.current_price.amount.u128(), 69_000_000);
+
+    setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_hour_nanos - 1, 5);
+    // read the price parameters just before price drops
+    let res: MintPriceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            minter_addr.clone(),
+            &QueryMsg::MintPrice {},
+        )
+        .unwrap();
+    assert_eq!(res.current_price.amount.u128(), 11_000_000);
+    assert_eq!(res.public_price.amount.u128(), unit_price);
+    assert_eq!(u64::from_str_radix(res.clone().dutch_auction_price.unwrap().end_time.as_str(), 10).unwrap(), end_time);
+    let next_price_time = end_time;
+    assert_eq!(u64::from_str_radix(res.clone().dutch_auction_price.unwrap().next_price_timestamp.as_str(), 10).unwrap(), next_price_time);
+
+
+    // failed to mint just before price drops due to insufficient funds
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(resting_price, NATIVE_DENOM),
+    );
+
+    assert!(res.is_err());
+
+    // mint just before price drops
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(11421053, NATIVE_DENOM),
+    );
+    if let Err(ref e) = res {
+        println!("Error: {}", e);
+        assert!(res.is_ok());
+    }
+
+    setup_block_time_height(&mut router, GENESIS_MINT_START_TIME + one_hour_nanos, 6);
+    // mint at resting price
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(resting_price, NATIVE_DENOM),
+    );
+    if let Err(ref e) = res {
+        println!("Error: {}", e);
+        assert!(res.is_ok());
+    }
+
+    let buyer_balances = router.wrap().query_all_balances(buyer.clone()).unwrap();
+    assert_eq!(
+        buyer_balances,
+        coins(INITIAL_BALANCE - 290_000_000, NATIVE_DENOM)
+    );
 }

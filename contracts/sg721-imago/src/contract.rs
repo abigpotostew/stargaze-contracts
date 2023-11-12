@@ -1,10 +1,8 @@
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to_binary};
+use cosmwasm_std::{ Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, to_binary};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 use cw721::ContractInfoResponse;
-use cw_utils::maybe_addr;
-use sg1::checked_fair_burn;
 use sg_std::StargazeMsgWrapper;
 use url::Url;
 
@@ -17,7 +15,6 @@ use crate::state::{CODE_URI, COLLECTION_INFO, CollectionInfo, FINALIZER, Royalty
 const CONTRACT_NAME: &str = "crates.io:sg-721-imago";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const CREATION_FEE: u128 = 1_000_000_000;
 const MAX_DESCRIPTION_LENGTH: u32 = 512;
 
 pub const DEV_ADDRESS: &str = "stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr";
@@ -29,13 +26,10 @@ pub type Sg721ImagoContract<'a> = cw721_base::Cw721Contract<'a, Empty, StargazeM
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    let addr = maybe_addr(deps.api, Some(DEV_ADDRESS.to_string()));
-    let fee_msgs = checked_fair_burn(&info, CREATION_FEE, addr?)?;
 
     // cw721 instantiation
     let info = ContractInfoResponse {
@@ -97,8 +91,7 @@ pub fn instantiate(
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)
-        .add_attribute("image", image.to_string())
-        .add_messages(fee_msgs))
+        .add_attribute("image", image.to_string()))
 }
 
 fn validate_code_uri(uri: String) -> Option<ContractError> {
@@ -247,11 +240,11 @@ mod tests {
             },
             finalizer: "finalizer_address".to_string(),
         };
-        let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
+        let info = mock_info("creator", &[]);
 
-        // make sure instantiate has the burn messages, and fairburn
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(3, res.messages.len());
+        // create fee removed and fairburn removed from pw
+        assert_eq!(0, res.messages.len());
 
         // let's query the collection info
         let res = query(deps.as_ref(), mock_env(), QueryMsg::CollectionInfo {}).unwrap();
@@ -288,12 +281,11 @@ mod tests {
             },
             finalizer: "finalizer_address".to_string(),
         };
-        let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
+        let info = mock_info("creator", &[]);
 
-        // make sure instantiate has the burn messages
-        // it also has the dev burn message now
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(3, res.messages.len());
+        // create fee removed and fairburn removed from pw
+        assert_eq!(0, res.messages.len());
 
         // let's query the collection info
         let res = query(deps.as_ref(), mock_env(), QueryMsg::CollectionInfo {}).unwrap();
@@ -332,11 +324,11 @@ mod tests {
             },
             finalizer: finalizer.to_string(),
         };
-        let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
+        let info = mock_info("creator", &[]);
 
-        // make sure instantiate has the burn messages and fair burn
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(3, res.messages.len());
+        // create fee removed and fairburn removed from pw
+        assert_eq!(0, res.messages.len());
 
         // mint nft
         let token_id = "1".to_string();
@@ -412,11 +404,11 @@ mod tests {
             },
             finalizer: finalizer.to_string(),
         };
-        let info = mock_info("creator", &coins(CREATION_FEE, NATIVE_DENOM));
+        let info = mock_info("creator", &[]);
 
-        // make sure instantiate has the burn messages and fair burn
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(3, res.messages.len());
+        // create fee removed and fairburn removed from pw
+        assert_eq!(0, res.messages.len());
 
         let query_msg: QueryMsg = QueryMsg::CodeUri {};
 

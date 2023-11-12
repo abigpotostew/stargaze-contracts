@@ -54,6 +54,18 @@ pub enum ContractError {
     #[error("InvalidStartTime {0} < {1}")]
     InvalidStartTime(Timestamp, Timestamp),
 
+    #[error("End time must be after start time")]
+    InvalidEndTime {},
+
+    #[error("Resting price must be less than unit price")]
+    InvalidRestingPrice {},
+
+    #[error("Decline period must be greater than 0 and less than the auction duration")]
+    InvalidDeclinePeriodSeconds {},
+
+    #[error("Dutch auction decline decay must be less than 1000000")]
+    InvalidDutchAuctionDeclineDecay {},
+
     #[error("Instantiate sg721 error")]
     InstantiateSg721Error {},
 
@@ -83,9 +95,6 @@ pub enum ContractError {
 
     #[error("{0}")]
     Fee(#[from] FeeError),
-
-    #[error("MaxOneMintPerBlock")]
-    MaxOneMintPerBlock {},
 
     #[error("InvalidCodeUri")]
     InvalidCodeUri {},

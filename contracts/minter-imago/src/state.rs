@@ -14,6 +14,15 @@ pub struct Config {
     pub whitelist: Option<Addr>,
     pub start_time: Timestamp,
     pub per_address_limit: u32,
+    pub dutch_auction_config: Option<DutchAuctionConfig>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DutchAuctionConfig {
+    pub end_time: Timestamp,
+    pub resting_unit_price: Coin,
+    pub decline_period_seconds: u64,
+    pub decline_decay: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -21,4 +30,3 @@ pub const SG721_ADDRESS: Item<Addr> = Item::new("sg721_address");
 pub const MINTABLE_TOKEN_IDS: Map<u32, bool> = Map::new("mt");
 pub const MINTABLE_NUM_TOKENS: Item<u32> = Item::new("mintable_num_tokens");
 pub const MINTER_ADDRS: Map<Addr, u32> = Map::new("ma");
-pub const MINTER_LAST_BLOCK: Map<Addr, u64> = Map::new("mlb");
