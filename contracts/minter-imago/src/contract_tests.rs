@@ -17,7 +17,7 @@ const INITIAL_BALANCE: u128 = 2_000_000_000;
 
 const UNIT_PRICE: u128 = 100_000_000;
 const MAX_TOKEN_LIMIT: u32 = 10000;
-const ADMIN_MINT_PRICE: u128 = 15_000_000;
+const ADMIN_MINT_PRICE: u128 = 50_000_000;
 
 fn custom_mock_app() -> StargazeApp {
     StargazeApp::default()
@@ -749,7 +749,7 @@ fn happy_path() {
         .query_all_balances(creator.to_string())
         .unwrap();
     assert_eq!(1, pw_balance_creator.len());
-    assert_eq!(pw_balance_creator[0].amount.u128(), 2_081_000_000); // PW fees
+    assert_eq!(pw_balance_creator[0].amount.u128(), 2_046_000_000); // PW fees
 
     // Minter contract should not have a balance
     let minter_balance = router
@@ -764,7 +764,7 @@ fn happy_path() {
         .query_all_balances("stars1zmqesn4d0gjwhcp2f0j3ptc2agqjcqmuadl6cr".to_string())
         .unwrap();
     assert_eq!(1, pw_balance2.len());
-    assert_eq!(pw_balance2[0].amount.u128(), 19_000_000); //PW fees
+    assert_eq!(pw_balance2[0].amount.u128(), 54_000_000); //PW fees
 
     // Check that NFT is transferred
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
